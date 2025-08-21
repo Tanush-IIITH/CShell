@@ -9,7 +9,7 @@ SRCDIR = src
 INCDIR = include
 
 # Source files
-SOURCES = $(SRCDIR)/shell.c $(SRCDIR)/shell_input.c $(SRCDIR)/parser.c
+SOURCES = $(SRCDIR)/shell.c $(SRCDIR)/shell_input.c $(SRCDIR)/parser.c $(SRCDIR)/command.c $(SRCDIR)/hop.c
 
 # Output executable
 TARGET = shell.out
