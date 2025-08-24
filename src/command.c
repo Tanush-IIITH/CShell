@@ -122,9 +122,6 @@ void execute_command(char *command) {
         // Built-in exit command to terminate shell
         printf("Goodbye!\n");
         exit(0);  // Terminate the program immediately
-    } else {
-        // Unknown command - could be extended to handle external programs
-        printf("Invalid Syntax!\n");
     }
     
     // Memory cleanup: Always free allocated resources

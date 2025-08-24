@@ -80,7 +80,7 @@ char* resolve_reveal_path(const char *target) {
         
         // Check if previous directory exists (non-empty string)
         if (strlen(prev_dir) == 0) {
-            printf("Invalid Syntax!\n");  // No previous directory available
+            printf("No such directory!\n");  // No previous directory available
             free(resolved_path);  // Clean up allocated memory
             return NULL;
         }
