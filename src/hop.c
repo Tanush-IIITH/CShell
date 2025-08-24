@@ -73,6 +73,23 @@ char* get_home_directory(void) {
     return home_directory;
 }
 
+/**
+ * Get the previous directory path for external access
+ * Used by reveal command when processing 'reveal -' 
+ * 
+ * @return: Pointer to previous directory string (read-only)
+ */
+const char* get_previous_directory(void) {
+    // Ensure hop state is initialized
+    if (!hop_initialized) {
+        init_hop_state();
+    }
+    
+    // Return pointer to previous directory
+    // Caller should not modify this string
+    return previous_directory;
+}
+
 /* ===============================================
  * DIRECTORY HISTORY MANAGEMENT
  * =============================================== */
@@ -139,7 +156,7 @@ static int change_directory(const char *path) {
         /* FAILURE PATH: Directory change failed */
         
         // Inform user about the failure with specific path that caused error
-        printf("No such directory: %s\n", path);
+        printf("No such directory!\n");
         
         // Clean up memory (before allocation may have succeeded even if chdir failed)
         if (before) free(before);

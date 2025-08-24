@@ -11,3 +11,5 @@
 #include <string.h>
 #include <sys/types.h>
 #include <ctype.h>
+#include <dirent.h>    // For directory operations (opendir, readdir, closedir)
+#include <limits.h>    // For PATH_MAX constant

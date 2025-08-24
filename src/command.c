@@ -1,6 +1,7 @@
 #include "../include/header.h"
 #include "../include/command.h"
 #include "../include/hop.h"
+#include "../include/reveal.h"
 
 /**
  * Parse command string into arguments array
@@ -81,17 +82,17 @@ void free_command_args(char **args, int arg_count) {
  * 4. Manages memory cleanup
  * 
  * @param command: Raw command string entered by the user
- * @return: Command execution status (0 = success, non-zero = error)
  * 
  * Current supported built-in commands:
  * - hop: Directory navigation command
+ * - reveal: Directory listing command
  * - exit: Terminate the shell
  */
-int execute_command(char *command) {
+void execute_command(char *command) {
     // Skip processing if command is empty or NULL
     // This handles cases where user just presses Enter
     if (command == NULL || strlen(command) == 0) {
-        return 1;  // Return success for empty commands
+        return;  // Nothing to execute
     }
     
     // Create a working copy of the command string
@@ -107,24 +108,26 @@ int execute_command(char *command) {
         // Clean up allocated memory before returning
         free(command_copy);
         free_command_args(args, arg_count);
-        return 1; // Empty command is considered successful
+        return; // Nothing to execute
     }
-    
-    int result = 0;  // Initialize return status
     
     // Command dispatch: Check the first argument to determine command type
     if (strcmp(args[0], "hop") == 0) {
         // Built-in hop command for directory navigation
-        result = hop_command(args, arg_count);
+        hop_command(args, arg_count);
+    } else if (strcmp(args[0], "reveal") == 0) {
+        // Built-in reveal command for listing directory contents
+        reveal_command(args, arg_count);
+    } else if (strcmp(args[0], "exit") == 0) {
+        // Built-in exit command to terminate shell
+        printf("Goodbye!\n");
+        exit(0);  // Terminate the program immediately
     } else {
         // Unknown command - could be extended to handle external programs
-        printf("Unknown command: %s\n", args[0]);
-        result = 0;  // Return success (non-fatal error)
+        printf("Invalid Syntax!\n");
     }
     
     // Memory cleanup: Always free allocated resources
     free(command_copy);              // Free the duplicated command string
     free_command_args(args, arg_count);  // Free the arguments array and its contents
-    
-    return result;  // Return the command execution status
 }
