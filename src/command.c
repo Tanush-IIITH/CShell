@@ -122,6 +122,26 @@ void execute_command(char *command) {
         // Built-in exit command to terminate shell
         printf("Goodbye!\n");
         exit(0);  // Terminate the program immediately
+    } else {
+        // External command: Use fork() and execvp() to execute arbitrary programs
+        pid_t pid = fork();  // Create a child process
+        
+        if (pid == 0) {
+            // Child process: Execute the external command
+            // execvp() searches for the command in PATH and executes it
+            if (execvp(args[0], args) == -1) {
+                // execvp() failed - command not found or execution error
+                printf("Invalid Syntax!\n");
+                exit(1);  // Exit child process with error status
+            }
+        } else if (pid > 0) {
+            // Parent process: Wait for child to complete
+            int status;
+            waitpid(pid, &status, 0);  // Wait for the child process to finish
+        } else {
+            // fork() failed
+            perror("fork");  // Print system error message
+        }
     }
     
     // Memory cleanup: Always free allocated resources
