@@ -221,32 +221,43 @@ void execute_command(char *command) {
  * Execute a command without adding it to the log
  * Used by log execute functionality to avoid recursive logging
  */
-void execute_command_without_logging(char *command) {
+/**
+ * Execute a single command (no pipes) with full redirection support
+ * 
+ * This function handles execution of individual commands including:
+ * - Built-in commands (hop, reveal, log, exit)
+ * - External commands via execvp()
+ * - Input redirection with < operator
+ * - Output redirection with > and >> operators
+ * - Proper process management and memory cleanup
+ * 
+ * The function creates a child process for most commands to ensure
+ * consistent I/O redirection behavior, except for 'exit' which must
+ * run in the parent process to actually terminate the shell.
+ * 
+ * @param command: Single command string with potential redirection operators
+ */
+void execute_single_command(char *command) {
     // Skip processing if command is empty or NULL
-    // This handles cases where user just presses Enter
     if (command == NULL || strlen(command) == 0) {
-        return;  // Nothing to execute
+        return;
     }
     
-    // Create a working copy of the command string
-    // This is necessary because parse_command_args() uses strtok() which modifies the string
+    // Create working copy for parsing
     char *command_copy = strdup(command);
     
-    // Parse the command into an arguments array with redirection support
     int arg_count;
     char *input_file;
     char *output_file;
     int append_mode;
     char **args = parse_command_args(command_copy, &arg_count, &input_file, &output_file, &append_mode);
     
-    // Handle edge case where parsing resulted in no arguments
     if (arg_count == 0) {
-        // Clean up allocated memory before returning
         free(command_copy);
         free_command_args(args, arg_count);
         if (input_file) free(input_file);
         if (output_file) free(output_file);
-        return; // Nothing to execute
+        return;
     }
     
     // Special case: exit command must run in parent to actually exit the shell
@@ -259,7 +270,7 @@ void execute_command_without_logging(char *command) {
     pid_t pid = fork();  // Create a child process
     
     if (pid == 0) {
-        // Child process: Set up input redirection if needed, then execute command
+        // Child process: Set up redirection if needed, then execute command
         
         // Set up input redirection if specified
         if (input_file != NULL) {
@@ -300,10 +311,9 @@ void execute_command_without_logging(char *command) {
         }
     } else if (pid > 0) {
         // Parent process: Wait for child to complete
-        int status;
-        waitpid(pid, &status, 0);  // Wait for the child process to finish
+        waitpid(pid, NULL, 0);  // Block until child process terminates
     } else {
-        // fork() failed
+        // fork() failed - print error message
         perror("fork");  // Print system error message
     }
     
@@ -312,4 +322,201 @@ void execute_command_without_logging(char *command) {
     free_command_args(args, arg_count);  // Free the arguments array and its contents
     if (input_file) free(input_file);    // Free input file string if allocated
     if (output_file) free(output_file);  // Free output file string if allocated
+}
+
+void execute_command_without_logging(char *command) {
+    // Skip processing if command is empty or NULL
+    if (command == NULL || strlen(command) == 0) {
+        return;
+    }
+    
+    // Check if command contains pipes
+    if (strchr(command, '|') != NULL) {
+        // Execute pipeline using simple string splitting approach
+        execute_pipeline(command);
+        return;
+    }
+    
+    // No pipes - use the dedicated single command function
+    execute_single_command(command);
+}
+
+/**
+ * Execute a pipeline of commands using simple string splitting approach
+ * 
+ * This function implements command piping by:
+ * 1. Splitting the command string on pipe operators ('|')
+ * 2. Creating pipes for inter-process communication
+ * 3. Forking child processes for each command in the pipeline
+ * 4. Setting up proper input/output redirection between processes
+ * 5. Supporting both pipes and file redirection (< > >>) simultaneously
+ * 
+ * Pipeline Structure:
+ * - First command: reads from stdin (or input file if < specified)
+ * - Middle commands: read from previous pipe, write to next pipe
+ * - Last command: writes to stdout (or output file if > or >> specified)
+ * 
+ * Process Management:
+ * - Each command runs in its own child process
+ * - Parent process waits for all children to complete
+ * - Pipe file descriptors are properly closed to avoid deadlocks
+ * 
+ * Examples:
+ * - "cat file.txt | grep pattern | wc -l" 
+ * - "cat < input.txt | sort | uniq > output.txt"
+ * - "reveal . | grep .txt >> results.txt"
+ * 
+ * @param command: Full command string containing pipe operators and/or redirection
+ */
+void execute_pipeline(char *command) {
+    // Step 1: Create a working copy since we'll modify the string during parsing
+    char *command_copy = strdup(command);
+    
+    // Step 2: Count pipe operators to determine the number of commands in pipeline
+    // Each '|' separates two commands, so num_commands = pipe_count + 1
+    int pipe_count = 0;
+    char *temp = command_copy;
+    while ((temp = strchr(temp, '|')) != NULL) {
+        pipe_count++;
+        temp++; // Move past the current pipe to find the next one
+    }
+    
+    int num_commands = pipe_count + 1;
+    
+    // Step 3: Handle special case - single command with no pipes
+    // Use the dedicated single command function to avoid code duplication
+    if (num_commands == 1) {
+        free(command_copy);
+        execute_single_command(command);
+        return;
+    }
+    
+    // Step 4: Create pipes for inter-process communication
+    // We need (num_commands - 1) pipes to connect num_commands processes
+    // pipe_fds[i][0] = read end, pipe_fds[i][1] = write end
+    int pipe_fds[num_commands - 1][2];
+    for (int i = 0; i < num_commands - 1; i++) {
+        if (pipe(pipe_fds[i]) == -1) {
+            perror("pipe");
+            free(command_copy);
+            return;
+        }
+    }
+    
+    // Step 5: Parse and execute each command in the pipeline
+    char *cmd_start = command_copy;  // Pointer to start of current command
+    pid_t pids[num_commands];        // Array to store child process IDs
+    
+    for (int i = 0; i < num_commands; i++) {
+        // Step 5a: Extract current command from the pipeline string
+        // Find next pipe operator or end of string
+        char *pipe_pos = strchr(cmd_start, '|');
+        if (pipe_pos) {
+            *pipe_pos = '\0';  // Null-terminate current command string
+        }
+        
+        // Step 5b: Parse the individual command using existing parser
+        // This handles redirection operators (<, >, >>) within each command
+        int arg_count;
+        char *input_file, *output_file;
+        int append_mode;
+        char **args = parse_command_args(cmd_start, &arg_count, &input_file, &output_file, &append_mode);
+        
+        // Skip empty commands (shouldn't happen with valid input)
+        if (arg_count == 0) {
+            if (pipe_pos) cmd_start = pipe_pos + 1;
+            continue;
+        }
+        
+        // Step 5c: Fork a child process for this command
+        pids[i] = fork();
+        if (pids[i] == 0) {
+            // === CHILD PROCESS ===
+            
+            // Step 5d: Set up input redirection
+            // Priority: pipe input > file input redirection
+            if (i > 0) {
+                // Not the first command: read from previous command's output pipe
+                if (dup2(pipe_fds[i-1][0], STDIN_FILENO) == -1) {
+                    perror("dup2");
+                    exit(1);
+                }
+            } else if (input_file) {
+                // First command with input file redirection (command < file)
+                if (setup_input_redirection(input_file) == -1) exit(1);
+            }
+            
+            // Step 5e: Set up output redirection  
+            // Priority: pipe output > file output redirection
+            if (i < num_commands - 1) {
+                // Not the last command: write to next command's input pipe
+                if (dup2(pipe_fds[i][1], STDOUT_FILENO) == -1) {
+                    perror("dup2");
+                    exit(1);
+                }
+            } else if (output_file && append_mode != -1) {
+                // Last command with output file redirection (command > file or command >> file)
+                if (setup_output_redirection(output_file, append_mode) == -1) exit(1);
+            }
+            
+            // Step 5f: Close all pipe file descriptors in child process
+            // This is crucial to prevent deadlocks and resource leaks
+            // Child only needs the specific pipe ends that were dup2'd to stdin/stdout
+            for (int j = 0; j < num_commands - 1; j++) {
+                close(pipe_fds[j][0]);  // Close read end
+                close(pipe_fds[j][1]);  // Close write end
+            }
+            
+            // Step 5g: Execute the command (built-in or external)
+            if (strcmp(args[0], "hop") == 0) {
+                hop_command(args, arg_count);
+                exit(0);
+            } else if (strcmp(args[0], "reveal") == 0) {
+                reveal_command(args, arg_count);
+                exit(0);
+            } else if (strcmp(args[0], "log") == 0) {
+                log_command(args, arg_count);
+                exit(0);
+            } else {
+                // External command: use execvp to replace process image
+                if (execvp(args[0], args) == -1) {
+                    exit(1);  // Exit with error if exec fails
+                }
+            }
+        } else if (pids[i] == -1) {
+            // Fork failed
+            perror("fork");
+        }
+        
+        // Step 5h: Clean up resources for this command
+        free_command_args(args, arg_count);
+        if (input_file) free(input_file);
+        if (output_file) free(output_file);
+        
+        // Step 5i: Move to next command in the pipeline
+        if (pipe_pos) {
+            cmd_start = pipe_pos + 1;
+            // Skip whitespace after pipe operator for cleaner parsing
+            while (*cmd_start == ' ' || *cmd_start == '\t') cmd_start++;
+        }
+    }
+    
+    // Step 6: Parent process cleanup and synchronization
+    // Close all pipe file descriptors in parent to prevent deadlocks
+    // Children have their own copies, so parent doesn't need them
+    for (int i = 0; i < num_commands - 1; i++) {
+        close(pipe_fds[i][0]);  // Close read end
+        close(pipe_fds[i][1]);  // Close write end
+    }
+    
+    // Step 7: Wait for all child processes to complete
+    // Pipeline is only complete when ALL commands finish
+    for (int i = 0; i < num_commands; i++) {
+        if (pids[i] > 0) {
+            waitpid(pids[i], NULL, 0);  // Wait for specific child process
+        }
+    }
+    
+    // Step 8: Final cleanup
+    free(command_copy);
 }
