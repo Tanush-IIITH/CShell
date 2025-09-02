@@ -5,26 +5,30 @@
 #include "../include/log.h"
 
 /**
- * Parse command string into arguments array with input redirection support
+ * Parse command string into arguments array with input and output redirection support
  * 
- * This function takes a command string (e.g., "hop /tmp .." or "cat < file.txt") 
+ * This function takes a command string (e.g., "hop /tmp .." or "cat < file.txt > output.txt") 
  * and breaks it down into individual arguments that can be processed by command handlers.
- * It handles input redirection with the < operator.
+ * It handles input redirection with the < operator and output redirection with > and >> operators.
  * 
  * @param command: Input command string to be parsed (will be modified by strtok)
  * @param arg_count: Pointer to integer that will store the number of arguments found
  * @param input_file: Pointer to string pointer that will store input redirection file (or NULL)
+ * @param output_file: Pointer to string pointer that will store output redirection file (or NULL)
+ * @param append_mode: Pointer to int that will store 1 for >>, 0 for >, -1 for no output redirection
  * @return: Array of string pointers containing the parsed arguments, NULL-terminated
  * 
  * Memory allocation: Caller is responsible for freeing the returned array and its contents
- * using free_command_args(), and freeing input_file if not NULL
+ * using free_command_args(), and freeing input_file and output_file if not NULL
  */
-char** parse_command_args(char *command, int *arg_count, char **input_file) {
+char** parse_command_args(char *command, int *arg_count, char **input_file, char **output_file, int *append_mode) {
     // Allocate memory for argument pointers array (support up to 64 arguments)
     // Each element will point to a dynamically allocated string
     char **args = malloc(64 * sizeof(char*));
     *arg_count = 0;  // Initialize argument counter
     *input_file = NULL;  // Initialize input file pointer
+    *output_file = NULL;  // Initialize output file pointer
+    *append_mode = -1;   // Initialize append mode (-1 = no output redirection)
     
     // Clean up the command string by removing trailing newline character
     // This is necessary because input from fgets() often includes '\n'
@@ -48,6 +52,28 @@ char** parse_command_args(char *command, int *arg_count, char **input_file) {
                     free(*input_file);
                 }
                 *input_file = strdup(token);
+            }
+        } else if (strcmp(token, ">") == 0) {
+            // Output redirection operator found (overwrite mode)
+            token = strtok(NULL, " \t\n\r");  // Get the filename
+            if (token != NULL) {
+                // If multiple output redirections, only keep the last one
+                if (*output_file) {
+                    free(*output_file);
+                }
+                *output_file = strdup(token);
+                *append_mode = 0;  // 0 = overwrite mode
+            }
+        } else if (strcmp(token, ">>") == 0) {
+            // Output redirection operator found (append mode)
+            token = strtok(NULL, " \t\n\r");  // Get the filename
+            if (token != NULL) {
+                // If multiple output redirections, only keep the last one
+                if (*output_file) {
+                    free(*output_file);
+                }
+                *output_file = strdup(token);
+                *append_mode = 1;  // 1 = append mode
             }
         } else {
             // Regular argument - create a permanent copy of the token using strdup()
@@ -103,6 +129,45 @@ int setup_input_redirection(const char *input_file) {
     
     // Redirect stdin to the file
     if (dup2(fd, STDIN_FILENO) == -1) {
+        perror("dup2");
+        close(fd);
+        return -1;
+    }
+    
+    return fd;  // Return fd so caller can close it
+}
+
+/**
+ * Set up output redirection for a command
+ * 
+ * This function handles output redirection by:
+ * 1. Opening the specified output file with appropriate flags
+ * 2. Redirecting stdout to the file using dup2()
+ * 3. Returning the file descriptor for cleanup
+ * 
+ * @param output_file: Path to the output file
+ * @param append_mode: 0 for overwrite (>), 1 for append (>>)
+ * @return: File descriptor of the opened file, or -1 on error
+ */
+int setup_output_redirection(const char *output_file, int append_mode) {
+    int flags;
+    if (append_mode == 1) {
+        // Append mode: create if doesn't exist, append if it does
+        flags = O_CREAT | O_WRONLY | O_APPEND;
+    } else {
+        // Overwrite mode: create if doesn't exist, truncate if it does
+        flags = O_CREAT | O_WRONLY | O_TRUNC;
+    }
+    
+    // Open with read/write permissions for owner, read for group and others
+    int fd = open(output_file, flags, 0644);
+    if (fd == -1) {
+        perror("open");
+        return -1;
+    }
+    
+    // Redirect stdout to the file
+    if (dup2(fd, STDOUT_FILENO) == -1) {
         perror("dup2");
         close(fd);
         return -1;
@@ -170,7 +235,9 @@ void execute_command_without_logging(char *command) {
     // Parse the command into an arguments array with redirection support
     int arg_count;
     char *input_file;
-    char **args = parse_command_args(command_copy, &arg_count, &input_file);
+    char *output_file;
+    int append_mode;
+    char **args = parse_command_args(command_copy, &arg_count, &input_file, &output_file, &append_mode);
     
     // Handle edge case where parsing resulted in no arguments
     if (arg_count == 0) {
@@ -178,6 +245,7 @@ void execute_command_without_logging(char *command) {
         free(command_copy);
         free_command_args(args, arg_count);
         if (input_file) free(input_file);
+        if (output_file) free(output_file);
         return; // Nothing to execute
     }
     
@@ -196,6 +264,14 @@ void execute_command_without_logging(char *command) {
         // Set up input redirection if specified
         if (input_file != NULL) {
             if (setup_input_redirection(input_file) == -1) {
+                // Failed to open file or redirect - error already printed
+                exit(1);
+            }
+        }
+        
+        // Set up output redirection if specified
+        if (output_file != NULL && append_mode != -1) {
+            if (setup_output_redirection(output_file, append_mode) == -1) {
                 // Failed to open file or redirect - error already printed
                 exit(1);
             }
@@ -235,4 +311,5 @@ void execute_command_without_logging(char *command) {
     free(command_copy);              // Free the duplicated command string
     free_command_args(args, arg_count);  // Free the arguments array and its contents
     if (input_file) free(input_file);    // Free input file string if allocated
+    if (output_file) free(output_file);  // Free output file string if allocated
 }
