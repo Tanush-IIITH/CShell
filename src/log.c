@@ -320,9 +320,6 @@ int execute_log_command(int index) {
     // Get the command string from history
     char *command = log_entries[actual_index].command;
     
-    // Show user what command is being executed
-    printf("%s\n", command);
-    
     // Execute the command WITHOUT adding it to history
     // This prevents the executed command from appearing twice in history
     execute_command_without_logging(command);
