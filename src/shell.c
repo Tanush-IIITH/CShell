@@ -3,10 +3,14 @@
 #include "../include/parser.h"
 #include "../include/command.h"
 #include "../include/hop.h"
+#include "../include/log.h"
 
 int main() {
     // Initialize hop command state
     init_hop_state();
+    
+    // Initialize log system
+    init_log();
     
     while(1){
         display_shell_prompt(); //display the shell prompt

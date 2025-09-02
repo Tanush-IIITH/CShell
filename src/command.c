@@ -2,6 +2,7 @@
 #include "../include/command.h"
 #include "../include/hop.h"
 #include "../include/reveal.h"
+#include "../include/log.h"
 
 /**
  * Parse command string into arguments array
@@ -80,15 +81,44 @@ void free_command_args(char **args, int arg_count) {
  * 2. Identifies the command type (built-in vs external)
  * 3. Calls the appropriate command handler
  * 4. Manages memory cleanup
+ * 5. Adds successful commands to log
  * 
  * @param command: Raw command string entered by the user
  * 
  * Current supported built-in commands:
  * - hop: Directory navigation command
  * - reveal: Directory listing command
+ * - log: Command history management
  * - exit: Terminate the shell
  */
 void execute_command(char *command) {
+    // Skip processing if command is empty or NULL
+    // This handles cases where user just presses Enter
+    if (command == NULL || strlen(command) == 0) {
+        return;  // Nothing to execute
+    }
+
+    // Remove trailing newline for logging
+    char *command_for_log = strdup(command);
+    char *newline = strchr(command_for_log, '\n');
+    if (newline) {
+        *newline = '\0';
+    }
+
+    // Execute the command
+    execute_command_without_logging(command);
+
+    // Add to log after successful execution
+    add_to_log(command_for_log);
+    
+    free(command_for_log);
+}
+
+/**
+ * Execute a command without adding it to the log
+ * Used by log execute functionality to avoid recursive logging
+ */
+void execute_command_without_logging(char *command) {
     // Skip processing if command is empty or NULL
     // This handles cases where user just presses Enter
     if (command == NULL || strlen(command) == 0) {
@@ -118,6 +148,9 @@ void execute_command(char *command) {
     } else if (strcmp(args[0], "reveal") == 0) {
         // Built-in reveal command for listing directory contents
         reveal_command(args, arg_count);
+    } else if (strcmp(args[0], "log") == 0) {
+        // Built-in log command for command history
+        log_command(args, arg_count);
     } else if (strcmp(args[0], "exit") == 0) {
         // Built-in exit command to terminate shell
         printf("Goodbye!\n");
