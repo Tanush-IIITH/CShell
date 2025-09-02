@@ -138,26 +138,41 @@ int parse_reveal_flags(char **args, int arg_count, reveal_flags_t *flags, char *
     for (int i = 1; i < arg_count; i++) {
         // Check if current argument is a flag (starts with '-' and has more characters)
         if (args[i][0] == '-' && strlen(args[i]) > 1) {
-            // Process each character in the flag argument (supports combined flags like -al)
+            // Check if all characters after '-' are valid flags
+            int is_valid_flag = 1;
             for (int j = 1; args[i][j] != '\0'; j++) {
-                switch (args[i][j]) {
-                    case 'a':
-                        flags->show_hidden = 1;  // Enable showing hidden files
-                        break;
-                    case 'l':
-                        flags->line_format = 1;  // Enable line-by-line format
-                        break;
-                    default:
-                        // Invalid flag character encountered
-                        printf("Invalid Syntax!\n");
-                        return -1;
+                if (args[i][j] != 'a' && args[i][j] != 'l') {
+                    is_valid_flag = 0;  // Found invalid flag character
+                    break;
                 }
+            }
+            
+            if (is_valid_flag) {
+                // Process each character in the valid flag argument (supports combined flags like -al)
+                for (int j = 1; args[i][j] != '\0'; j++) {
+                    switch (args[i][j]) {
+                        case 'a':
+                            flags->show_hidden = 1;  // Enable showing hidden files
+                            break;
+                        case 'l':
+                            flags->line_format = 1;  // Enable line-by-line format
+                            break;
+                    }
+                }
+            } else {
+                // Invalid flag characters found, treat as directory name
+                // Check if we already have a target directory (only one allowed)
+                if (*target_dir != NULL) {
+                    printf("reveal: Invalid Syntax!\n");  // Multiple directories specified
+                    return -1;
+                }
+                *target_dir = args[i];  // Store pointer to the directory argument
             }
         } else {
             // This argument is not a flag, treat as target directory
             // Check if we already have a target directory (only one allowed)
             if (*target_dir != NULL) {
-                printf("Invalid Syntax!\n");  // Multiple directories specified
+                printf("reveal: Invalid Syntax!\n");  // Multiple directories specified
                 return -1;
             }
             *target_dir = args[i];  // Store pointer to the directory argument
@@ -178,7 +193,7 @@ int list_directory_contents(const char *dir_path, reveal_flags_t flags) {
     // Attempt to open the directory for reading
     DIR *dir = opendir(dir_path);
     if (!dir) {
-        printf("Invalid Syntax!\n");  // Directory doesn't exist or no permission
+        printf("No such directory!\n");  // Directory doesn't exist or no permission
         return -1;
     }
     
