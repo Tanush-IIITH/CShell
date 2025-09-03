@@ -332,7 +332,7 @@ void execute_command_without_logging(char *command) {
     }
     
     // Check if command contains semicolons for sequential execution
-    if (strchr(command, ';') != NULL) {
+    if (contains_semicolon(command)) {
         // Execute sequential commands using semicolon splitting approach
         execute_sequential_commands(command);
         return;

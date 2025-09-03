@@ -40,16 +40,9 @@ void execute_sequential_commands(char *command) {
         return;
     }
     
-    // Step 2: Count semicolon operators to determine the number of commands
-    // Each ';' separates two commands, so num_commands = semicolon_count + 1
-    int semicolon_count = 0;
-    char *temp = command_copy;
-    while ((temp = strchr(temp, ';')) != NULL) {
-        semicolon_count++;
-        temp++; // Move past the current semicolon to find the next one
-    }
-    
-    int num_commands = semicolon_count + 1;
+    // Step 2: Count the total number of commands in the sequence
+    // Use helper function for consistent counting logic
+    int num_commands = count_sequential_commands(command);
     
     // Step 3: Execute each command sequentially
     // Note: Since we only reach this function when semicolons are detected,
