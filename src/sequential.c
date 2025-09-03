@@ -1,4 +1,5 @@
 #include "sequential.h"
+#include "background.h"
 #include "command.h"
 #include "header.h"
 
@@ -79,13 +80,25 @@ void execute_sequential_commands(char *command) {
         }
         
         // Step 3d: Execute the current command
-        // Each command is treated as a complete shell command that can contain:
-        // - Single commands: "echo hello"
-        // - Pipelines: "cat file.txt | grep pattern | wc -l"
-        // - Redirections: "echo data > file.txt"
-        // - Complex combinations: "cat < input.txt | grep pattern > output.txt"
-        
-        execute_command_without_logging(cmd_start);
+        // Check if this individual command should run in background
+        if (contains_background_operator(cmd_start)) {
+            // Remove & operator and execute in background
+            char *bg_cmd = strdup(cmd_start);
+            if (bg_cmd) {
+                remove_background_operator(bg_cmd);
+                execute_background_command(bg_cmd);
+                free(bg_cmd);
+            }
+        } else {
+            // Execute normally in foreground
+            // Each command is treated as a complete shell command that can contain:
+            // - Single commands: "echo hello"
+            // - Pipelines: "cat file.txt | grep pattern | wc -l"
+            // - Redirections: "echo data > file.txt"
+            // - Complex combinations: "cat < input.txt | grep pattern > output.txt"
+            
+            execute_command_without_logging(cmd_start);
+        }
         
         // Step 3e: Command has completed, move to next command in the sequence
         if (semicolon_pos) {

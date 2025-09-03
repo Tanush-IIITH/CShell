@@ -4,6 +4,7 @@
 #include "../include/command.h"
 #include "../include/hop.h"
 #include "../include/log.h"
+#include "../include/background.h"
 
 int main() {
     // Initialize hop command state
@@ -12,10 +13,21 @@ int main() {
     // Initialize log system
     init_log();
     
+    // Initialize background job management
+    init_background_jobs();
+    
     while(1){
+        // Check for completed background jobs before processing new input
+        check_background_jobs();
+        
         display_shell_prompt(); //display the shell prompt
         char command[4096];
-        fgets(command, sizeof(command), stdin); //read command from user input
+        
+        // Read command from user input
+        if (!fgets(command, sizeof(command), stdin)) {
+            // End of input reached
+            break;
+        }
 
         // Skip empty commands
         if (strlen(command) <= 1) { // Only newline
@@ -32,5 +44,8 @@ int main() {
         execute_command(command);
     }
     
+    //fix this later after implementing E3
+    // Cleanup resources before exit (though this may never be reached)
+    cleanup_background_jobs();
     return 0;
 }

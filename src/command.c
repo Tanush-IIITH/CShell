@@ -1,5 +1,6 @@
 #include "header.h"
 #include "sequential.h"
+#include "background.h"
 #include "../include/command.h"
 #include "../include/hop.h"
 #include "../include/reveal.h"
@@ -331,6 +332,18 @@ void execute_command_without_logging(char *command) {
         return;
     }
     
+    // Check if command contains background operator (&)
+    if (contains_background_operator(command)) {
+        // Remove the & operator and execute in background
+        char *bg_command = strdup(command);
+        if (bg_command) {
+            remove_background_operator(bg_command);
+            execute_background_command(bg_command);
+            free(bg_command);
+        }
+        return;
+    }
+    
     // Check if command contains semicolons for sequential execution
     if (contains_semicolon(command)) {
         // Execute sequential commands using semicolon splitting approach
@@ -345,7 +358,7 @@ void execute_command_without_logging(char *command) {
         return;
     }
     
-    // No semicolons or pipes - use the dedicated single command function
+    // No special operators - use the dedicated single command function
     execute_single_command(command);
 }
 

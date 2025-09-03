@@ -13,6 +13,7 @@
 #include <sys/wait.h>  // For waitpid() function
 #include <sys/stat.h>  // For file operations
 #include <fcntl.h>     // For open() and file control flags
+#include <signal.h>    // For signal handling
 #include <ctype.h>
 #include <dirent.h>    // For directory operations (opendir, readdir, closedir)
 #include <limits.h>    // For PATH_MAX constant
