@@ -1,4 +1,5 @@
-#include "../include/header.h"
+#include "header.h"
+#include "sequential.h"
 #include "../include/command.h"
 #include "../include/hop.h"
 #include "../include/reveal.h"
@@ -330,6 +331,13 @@ void execute_command_without_logging(char *command) {
         return;
     }
     
+    // Check if command contains semicolons for sequential execution
+    if (strchr(command, ';') != NULL) {
+        // Execute sequential commands using semicolon splitting approach
+        execute_sequential_commands(command);
+        return;
+    }
+    
     // Check if command contains pipes
     if (strchr(command, '|') != NULL) {
         // Execute pipeline using simple string splitting approach
@@ -337,7 +345,7 @@ void execute_command_without_logging(char *command) {
         return;
     }
     
-    // No pipes - use the dedicated single command function
+    // No semicolons or pipes - use the dedicated single command function
     execute_single_command(command);
 }
 
@@ -383,15 +391,9 @@ void execute_pipeline(char *command) {
     
     int num_commands = pipe_count + 1;
     
-    // Step 3: Handle special case - single command with no pipes
-    // Use the dedicated single command function to avoid code duplication
-    if (num_commands == 1) {
-        free(command_copy);
-        execute_single_command(command);
-        return;
-    }
-    
-    // Step 4: Create pipes for inter-process communication
+    // Step 3: Create pipes for inter-process communication
+    // Note: Since we only reach this function when pipes are detected,
+    // num_commands will always be >= 2
     // We need (num_commands - 1) pipes to connect num_commands processes
     // pipe_fds[i][0] = read end, pipe_fds[i][1] = write end
     int pipe_fds[num_commands - 1][2];
@@ -403,19 +405,19 @@ void execute_pipeline(char *command) {
         }
     }
     
-    // Step 5: Parse and execute each command in the pipeline
+    // Step 4: Parse and execute each command in the pipeline
     char *cmd_start = command_copy;  // Pointer to start of current command
     pid_t pids[num_commands];        // Array to store child process IDs
     
     for (int i = 0; i < num_commands; i++) {
-        // Step 5a: Extract current command from the pipeline string
+        // Step 4a: Extract current command from the pipeline string
         // Find next pipe operator or end of string
         char *pipe_pos = strchr(cmd_start, '|');
         if (pipe_pos) {
             *pipe_pos = '\0';  // Null-terminate current command string
         }
         
-        // Step 5b: Parse the individual command using existing parser
+        // Step 4b: Parse the individual command using existing parser
         // This handles redirection operators (<, >, >>) within each command
         int arg_count;
         char *input_file, *output_file;
@@ -428,12 +430,12 @@ void execute_pipeline(char *command) {
             continue;
         }
         
-        // Step 5c: Fork a child process for this command
+        // Step 4c: Fork a child process for this command
         pids[i] = fork();
         if (pids[i] == 0) {
             // === CHILD PROCESS ===
             
-            // Step 5d: Set up input redirection
+            // Step 4d: Set up input redirection
             // Priority: pipe input > file input redirection
             if (i > 0) {
                 // Not the first command: read from previous command's output pipe
@@ -446,7 +448,7 @@ void execute_pipeline(char *command) {
                 if (setup_input_redirection(input_file) == -1) exit(1);
             }
             
-            // Step 5e: Set up output redirection  
+            // Step 4e: Set up output redirection  
             // Priority: pipe output > file output redirection
             if (i < num_commands - 1) {
                 // Not the last command: write to next command's input pipe
@@ -459,7 +461,7 @@ void execute_pipeline(char *command) {
                 if (setup_output_redirection(output_file, append_mode) == -1) exit(1);
             }
             
-            // Step 5f: Close all pipe file descriptors in child process
+            // Step 4f: Close all pipe file descriptors in child process
             // This is crucial to prevent deadlocks and resource leaks
             // Child only needs the specific pipe ends that were dup2'd to stdin/stdout
             for (int j = 0; j < num_commands - 1; j++) {
@@ -467,7 +469,7 @@ void execute_pipeline(char *command) {
                 close(pipe_fds[j][1]);  // Close write end
             }
             
-            // Step 5g: Execute the command (built-in or external)
+            // Step 4g: Execute the command (built-in or external)
             if (strcmp(args[0], "hop") == 0) {
                 hop_command(args, arg_count);
                 exit(0);
@@ -488,12 +490,12 @@ void execute_pipeline(char *command) {
             perror("fork");
         }
         
-        // Step 5h: Clean up resources for this command
+        // Step 4h: Clean up resources for this command
         free_command_args(args, arg_count);
         if (input_file) free(input_file);
         if (output_file) free(output_file);
         
-        // Step 5i: Move to next command in the pipeline
+        // Step 4i: Move to next command in the pipeline
         if (pipe_pos) {
             cmd_start = pipe_pos + 1;
             // Skip whitespace after pipe operator for cleaner parsing
@@ -501,7 +503,7 @@ void execute_pipeline(char *command) {
         }
     }
     
-    // Step 6: Parent process cleanup and synchronization
+    // Step 5: Parent process cleanup and synchronization
     // Close all pipe file descriptors in parent to prevent deadlocks
     // Children have their own copies, so parent doesn't need them
     for (int i = 0; i < num_commands - 1; i++) {
@@ -509,7 +511,7 @@ void execute_pipeline(char *command) {
         close(pipe_fds[i][1]);  // Close write end
     }
     
-    // Step 7: Wait for all child processes to complete
+    // Step 6: Wait for all child processes to complete
     // Pipeline is only complete when ALL commands finish
     for (int i = 0; i < num_commands; i++) {
         if (pids[i] > 0) {
@@ -517,6 +519,6 @@ void execute_pipeline(char *command) {
         }
     }
     
-    // Step 8: Final cleanup
+    // Step 7: Final cleanup
     free(command_copy);
 }
