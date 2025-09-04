@@ -251,12 +251,17 @@ void purge_log() {
     log_count = 0;  // Reset to empty state
     log_start = 0;  // Reset start pointer
     
-    // Explicitly create/truncate the log file to ensure it's empty
-    FILE *file = fopen(get_log_file_path(), "w");
+    // Remove the file completely, then recreate it empty
+    const char *log_path = get_log_file_path();
+    
+    // Remove and recreate 
+    if (remove(log_path) != 0) {}
+    // Create new empty file
+    FILE *file = fopen(log_path, "w");
     if (file) {
-        fclose(file);  // Create empty file
+        fclose(file);  // Creates empty file
     } else {
-        perror("Failed to purge log file");
+        perror("Failed to create empty log file after purge");
     }
 }
 

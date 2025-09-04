@@ -20,9 +20,6 @@ void init_background_jobs(void) {
     next_job_number = 1;
     job_count = 0;
     
-    // Set up signal handler for child process completion
-    // We'll use SIGCHLD to detect when background processes finish
-    signal(SIGCHLD, SIG_IGN); // Prevent zombie processes for now
 }
 
 /**
@@ -213,7 +210,6 @@ void check_background_jobs(void) {
         }
     }
 }
-
 /**
  * Clean up background job tracking
  */
