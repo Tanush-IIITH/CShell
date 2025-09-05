@@ -5,6 +5,8 @@
 #include "../include/hop.h"
 #include "../include/reveal.h"
 #include "../include/log.h"
+#include "../include/activities.h"
+#include "../include/ping.h"
 
 /**
  * Parse command string into arguments array with input and output redirection support
@@ -303,6 +305,14 @@ void execute_single_command(char *command) {
             // Built-in log command for command history
             log_command(args, arg_count);
             exit(0);  // Exit child process after built-in command
+        } else if (strcmp(args[0], "activities") == 0) {
+            // Built-in activities command for process tracking
+            execute_activities_command(args, arg_count);
+            exit(0);  // Exit child process after built-in command
+        } else if (strcmp(args[0], "ping") == 0) {
+            // Built-in ping command for sending signals to processes
+            execute_ping_command(args, arg_count);
+            exit(0);  // Exit child process after built-in command
         } else {
             // External command: Use execvp() to execute arbitrary programs
             // execvp() searches for the command in PATH and executes it
@@ -312,8 +322,10 @@ void execute_single_command(char *command) {
             }
         }
     } else if (pid > 0) {
-        // Parent process: Wait for child to complete
+        // Parent process: Add to activities tracking and wait for child to complete
+        add_activity(pid, command, 0);  // Track as foreground process
         waitpid(pid, NULL, 0);  // Block until child process terminates
+        remove_activity(pid);   // Remove from tracking when completed
     } else {
         // fork() failed - print error message
         perror("fork");  // Print system error message
@@ -491,6 +503,12 @@ void execute_pipeline(char *command) {
                 exit(0);
             } else if (strcmp(args[0], "log") == 0) {
                 log_command(args, arg_count);
+                exit(0);
+            } else if (strcmp(args[0], "activities") == 0) {
+                execute_activities_command(args, arg_count);
+                exit(0);
+            } else if (strcmp(args[0], "ping") == 0) {
+                execute_ping_command(args, arg_count);
                 exit(0);
             } else {
                 // External command: use execvp to replace process image

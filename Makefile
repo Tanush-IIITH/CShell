@@ -9,7 +9,7 @@ SRCDIR = src
 INCDIR = include
 
 # Source files
-SOURCES = $(SRCDIR)/shell.c $(SRCDIR)/shell_input.c $(SRCDIR)/parser.c $(SRCDIR)/command.c $(SRCDIR)/hop.c $(SRCDIR)/reveal.c $(SRCDIR)/log.c $(SRCDIR)/sequential.c $(SRCDIR)/background.c
+SOURCES = $(SRCDIR)/shell.c $(SRCDIR)/shell_input.c $(SRCDIR)/parser.c $(SRCDIR)/command.c $(SRCDIR)/hop.c $(SRCDIR)/reveal.c $(SRCDIR)/log.c $(SRCDIR)/sequential.c $(SRCDIR)/background.c $(SRCDIR)/activities.c $(SRCDIR)/ping.c
 
 # Output executable
 TARGET = shell.out
