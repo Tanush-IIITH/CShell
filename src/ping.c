@@ -7,7 +7,7 @@
 int execute_ping_command(char **args, int arg_count) {
     // Validate argument count
     if (arg_count != 3) {
-        fprintf(stderr, "Usage: ping <pid> <signal_number>\n");
+        // fprintf(stderr, "Usage: ping <pid> <signal_number>\n");
         return -1;
     }
     
@@ -15,7 +15,8 @@ int execute_ping_command(char **args, int arg_count) {
     char *endptr;
     long pid_long = strtol(args[1], &endptr, 10);
     if (*endptr != '\0' || pid_long <= 0) {
-        fprintf(stderr, "Error: Invalid PID '%s'\n", args[1]);
+        // fprintf(stderr, "Error: Invalid PID '%s'\n", args[1]);
+        printf("No such process found\n");
         return -1;
     }
     pid_t pid = (pid_t)pid_long;
@@ -23,7 +24,7 @@ int execute_ping_command(char **args, int arg_count) {
     // Parse signal number
     long signal_long = strtol(args[2], &endptr, 10);
     if (*endptr != '\0' || signal_long < 0) {
-        fprintf(stderr, "Error: Invalid signal number '%s'\n", args[2]);
+        // fprintf(stderr, "Error: Invalid signal number '%s'\n", args[2]);
         return -1;
     }
     
