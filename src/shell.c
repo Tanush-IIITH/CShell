@@ -5,17 +5,16 @@
 #include "../include/hop.h"
 #include "../include/log.h"
 #include "../include/background.h"
-#include "../include/activities.h"
 
 int main() {
     // Initialize hop command state
     init_hop_state();
     
+    // Initialize log system
+    init_log();
+    
     // Initialize background job management
     init_background_jobs();
-    
-    // Initialize activities tracking
-    init_activities();
     
     while(1){
         // Check for completed background jobs before processing new input

@@ -1,7 +1,6 @@
 #include "background.h"
 #include "command.h"
 #include "header.h"
-#include "activities.h"
 
 // Global array to track background jobs
 static background_job_t background_jobs[MAX_BACKGROUND_JOBS];
@@ -76,7 +75,7 @@ void remove_background_operator(char *command) {
 /**
  * Extract command name from command string for reporting
  */
-static char* extract_background_command_name(const char *command) {
+static char* extract_command_name(const char *command) {
     if (command == NULL) {
         return strdup("unknown");
     }
@@ -127,7 +126,7 @@ int execute_background_command(char *command) {
     }
     
     // Extract command name for reporting
-    char *command_name = extract_background_command_name(command);
+    char *command_name = extract_command_name(command);
     
     // Fork the process
     pid_t pid = fork();
@@ -162,9 +161,6 @@ int execute_background_command(char *command) {
         background_jobs[slot].pid = pid;
         background_jobs[slot].command_name = command_name;
         background_jobs[slot].is_active = 1;
-        
-        // Add to activities tracking
-        add_activity(pid, command, 1);  // Track as background process
         
         // Print job information
         printf("[%d] %d\n", next_job_number, pid);
@@ -209,10 +205,6 @@ void check_background_jobs(void) {
                 background_jobs[i].is_active = 0;
                 background_jobs[i].command_name = NULL;
                 job_count--;
-                
-                // Remove from activities tracking
-                remove_activity(pid);
-                
                 break;
             }
         }
