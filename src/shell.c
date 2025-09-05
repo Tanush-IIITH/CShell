@@ -6,8 +6,12 @@
 #include "../include/log.h"
 #include "../include/background.h"
 #include "../include/activities.h"
+#include "../include/signal_handler.h"
 
 int main() {
+    // Initialize signal handling (Ctrl-C protection)
+    init_signal_handling();
+    
     // Initialize hop command state
     init_hop_state();
     

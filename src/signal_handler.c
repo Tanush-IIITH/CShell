@@ -1,0 +1,115 @@
+#include "signal_handler.h"
+#include "shell_input.h"
+#include <signal.h>
+#include <sys/types.h>
+
+// Global variables to track current foreground process or process group
+static pid_t current_foreground_pid = 0;    // For single commands
+static pid_t current_foreground_pgid = 0;   // For pipelines (process groups)
+
+/**
+ * SIGINT signal handler
+ * 
+ * This function is called when Ctrl-C (SIGINT) is pressed.
+ * It forwards the SIGINT signal to the current foreground process or process group
+ * if one exists, otherwise it does nothing (preventing shell termination).
+ * 
+ * @param sig: The signal number (should be SIGINT = 2)
+ */
+static void sigint_handler(int sig) {
+    // Avoid unused parameter warning
+    (void)sig;
+    
+    // Priority: Process group (pipeline) > Single process
+    if (current_foreground_pgid > 0) {
+        printf("\n"); // Move to new line after ^C
+        
+        // Send SIGINT to entire process group (negative PID signals the group)
+        if (kill(-current_foreground_pgid, SIGINT) == 0) {
+            // Signal sent successfully to entire pipeline
+        } else {
+            // Process group might have already terminated
+            current_foreground_pgid = 0;
+        }
+    } else if (current_foreground_pid > 0) {
+        printf("\n"); // Move to new line after ^C
+        
+        // Use kill() to send SIGINT to the single foreground process
+        if (kill(current_foreground_pid, SIGINT) == 0) {
+            // Signal sent successfully
+        } else {
+            // Process might have already terminated
+            current_foreground_pid = 0;
+        }
+    } else {
+        // No foreground process, just print a newline and redisplay prompt
+        printf("\n");
+        display_shell_prompt();  // Redisplay the shell prompt
+        fflush(stdout);
+    }
+}
+
+/**
+ * Initialize signal handling for the shell
+ * 
+ * Sets up the SIGINT handler to prevent the shell from terminating
+ * when Ctrl-C is pressed, and instead forward the signal to foreground processes.
+ */
+void init_signal_handling(void) {
+    // Install our custom SIGINT handler
+    struct sigaction sa; // posix structure that defines how to handle a specific signal
+    sa.sa_handler = sigint_handler;    // Our custom handler function
+    sigemptyset(&sa.sa_mask);          // Don't block other signals during handler
+    sa.sa_flags = SA_RESTART;          // Restart interrupted system calls
+    
+    if (sigaction(SIGINT, &sa, NULL) == -1) {
+        perror("sigaction");
+        // Continue anyway - shell will still work without proper signal handling
+    }
+    
+    // Note: We don't handle SIGQUIT (Ctrl-\) or other signals here
+    // The shell should still be terminable via SIGQUIT if needed
+}
+
+/**
+ * Set the current foreground process PID (for single commands)
+ * 
+ * This should be called:
+ * - When starting a foreground process (set to the process PID)
+ * - When a foreground process completes (set to 0)
+ * 
+ * @param pid: Process ID of the foreground process (0 if no foreground process)
+ */
+void set_foreground_process(pid_t pid) {
+    current_foreground_pid = pid;
+    // Clear process group tracking when setting single process
+    if (pid > 0) {
+        current_foreground_pgid = 0;
+    }
+}
+
+/**
+ * Set the current foreground process group (for pipelines)
+ * 
+ * This should be called:
+ * - When starting a pipeline (set to the process group ID)
+ * - When a pipeline completes (set to 0)
+ * 
+ * @param pgid: Process Group ID of the foreground pipeline (0 if no foreground group)
+ */
+void set_foreground_process_group(pid_t pgid) {
+    current_foreground_pgid = pgid;
+    // Clear single process tracking when setting process group
+    if (pgid > 0) {
+        current_foreground_pid = 0;
+    }
+}
+
+/**
+ * Get the current foreground process PID
+ * 
+ * @return: PID of current foreground process, or 0 if none
+ */
+pid_t get_foreground_process(void) {
+    return current_foreground_pid;
+}

@@ -7,6 +7,7 @@
 #include "../include/log.h"
 #include "../include/activities.h"
 #include "../include/ping.h"
+#include "../include/signal_handler.h"
 
 /**
  * Parse command string into arguments array with input and output redirection support
@@ -324,7 +325,15 @@ void execute_single_command(char *command) {
     } else if (pid > 0) {
         // Parent process: Add to activities tracking and wait for child to complete
         add_activity(pid, command, 0);  // Track as foreground process
+        
+        // Set this as the current foreground process for signal handling
+        set_foreground_process(pid);
+        
         waitpid(pid, NULL, 0);  // Block until child process terminates
+        
+        // Clear foreground process tracking
+        set_foreground_process(0);
+        
         remove_activity(pid);   // Remove from tracking when completed
     } else {
         // fork() failed - print error message
@@ -433,6 +442,7 @@ void execute_pipeline(char *command) {
     // Step 4: Parse and execute each command in the pipeline
     char *cmd_start = command_copy;  // Pointer to start of current command
     pid_t pids[num_commands];        // Array to store child process IDs
+    pid_t pipeline_pgid = 0;         // Process group ID for the entire pipeline
     
     for (int i = 0; i < num_commands; i++) {
         // Step 4a: Extract current command from the pipeline string
@@ -459,6 +469,22 @@ void execute_pipeline(char *command) {
         pids[i] = fork();
         if (pids[i] == 0) {
             // === CHILD PROCESS ===
+            
+            // Step 4c1: Set up process group
+            if (i == 0) {
+                // First process: create new process group with this process as leader
+                pipeline_pgid = getpid();
+                if (setpgid(0, 0) == -1) {
+                    perror("setpgid");
+                    exit(1);
+                }
+            } else {
+                // Other processes: join the first process's group
+                if (setpgid(0, pipeline_pgid) == -1) {
+                    perror("setpgid");
+                    exit(1);
+                }
+            }
             
             // Step 4d: Set up input redirection
             // Priority: pipe input > file input redirection
@@ -519,6 +545,18 @@ void execute_pipeline(char *command) {
         } else if (pids[i] == -1) {
             // Fork failed
             perror("fork");
+        } else {
+            // === PARENT PROCESS ===
+            
+            // Set up process group in parent too (race condition prevention)
+            if (i == 0) {
+                // Store the process group ID from first process
+                pipeline_pgid = pids[0];
+                setpgid(pids[0], pids[0]);  // First process becomes group leader
+            } else {
+                // Add subsequent processes to the group
+                setpgid(pids[i], pipeline_pgid);
+            }
         }
         
         // Step 4h: Clean up resources for this command
@@ -544,11 +582,20 @@ void execute_pipeline(char *command) {
     
     // Step 6: Wait for all child processes to complete
     // Pipeline is only complete when ALL commands finish
+    
+    // For signal handling, track the entire pipeline as a process group
+    if (pipeline_pgid > 0) {
+        set_foreground_process_group(pipeline_pgid);
+    }
+    
     for (int i = 0; i < num_commands; i++) {
         if (pids[i] > 0) {
             waitpid(pids[i], NULL, 0);  // Wait for specific child process
         }
     }
+    
+    // Clear foreground process group tracking
+    set_foreground_process_group(0);
     
     // Step 7: Final cleanup
     free(command_copy);
