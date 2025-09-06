@@ -329,12 +329,20 @@ void execute_single_command(char *command) {
         // Set this as the current foreground process for signal handling
         set_foreground_process(pid);
         
-        waitpid(pid, NULL, 0);  // Block until child process terminates
+        int status;
+        waitpid(pid, &status, WUNTRACED);  // Block until child terminates OR stops
+        
+        // Check if process was stopped (Ctrl-Z) vs terminated
+        if (WIFSTOPPED(status)) {
+            // Process was stopped, don't remove from activities
+            // Signal handler already moved it to background
+        } else {
+            // Process terminated normally, clean up
+            remove_activity(pid);   // Remove from tracking when completed
+        }
         
         // Clear foreground process tracking
         set_foreground_process(0);
-        
-        remove_activity(pid);   // Remove from tracking when completed
     } else {
         // fork() failed - print error message
         perror("fork");  // Print system error message
@@ -590,7 +598,11 @@ void execute_pipeline(char *command) {
     
     for (int i = 0; i < num_commands; i++) {
         if (pids[i] > 0) {
-            waitpid(pids[i], NULL, 0);  // Wait for specific child process
+            int status;
+            waitpid(pids[i], &status, WUNTRACED);  // Wait for child to terminate OR stop
+            
+            // If any process in pipeline is stopped, the whole pipeline is stopped
+            // Signal handler will have already moved it to background
         }
     }
     

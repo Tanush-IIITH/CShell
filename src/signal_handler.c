@@ -233,8 +233,7 @@ void move_process_to_background(pid_t pid) {
     // Clear foreground tracking
     current_foreground_pid = 0;
     
-    // Redisplay prompt
-    display_shell_prompt();
+    // Don't display prompt here - let main loop handle it
     fflush(stdout);
 }
 
