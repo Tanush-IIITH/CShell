@@ -30,8 +30,10 @@ int main() {
         
         // Read command from user input
         if (!fgets(command, sizeof(command), stdin)) {
-            // End of input reached
-            break;
+            // End of input reached (Ctrl-D pressed or pipe closed)
+            // Handle EOF condition: kill all processes and exit cleanly
+            handle_eof_condition();
+            // Function never returns (calls exit(0))
         }
 
         // Skip empty commands

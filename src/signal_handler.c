@@ -1,5 +1,6 @@
 #include "signal_handler.h"
 #include "shell_input.h"
+#include "activities.h"
 #include <signal.h>
 #include <sys/types.h>
 
@@ -112,4 +113,34 @@ void set_foreground_process_group(pid_t pgid) {
  */
 pid_t get_foreground_process(void) {
     return current_foreground_pid;
+}
+
+/**
+ * Handle EOF (Ctrl-D) condition
+ * 
+ * This function is called when EOF is detected (user presses Ctrl-D).
+ * It performs cleanup by:
+ * 1. Killing all active child processes (foreground and background)
+ * 2. Printing "logout" message
+ * 3. Exiting the shell with status 0
+ */
+void handle_eof_condition(void) {
+    printf("logout\n");
+    
+    // Kill current foreground process if any
+    if (current_foreground_pid > 0) {
+        kill(current_foreground_pid, SIGKILL);
+    }
+    
+    // Kill current foreground process group if any
+    if (current_foreground_pgid > 0) {
+        kill(-current_foreground_pgid, SIGKILL);
+    }
+    
+    // Kill all background processes tracked by activities
+    // This requires integration with activities system
+    cleanup_all_background_processes();
+    
+    // Exit shell with success status
+    exit(0);
 }

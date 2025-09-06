@@ -30,3 +30,9 @@ void set_foreground_process_group(pid_t pgid);
  * @return: PID of current foreground process, or 0 if none
  */
 pid_t get_foreground_process(void);
+
+/**
+ * Handle EOF (Ctrl-D) condition
+ * Kills all child processes and exits shell cleanly
+ */
+void handle_eof_condition(void);

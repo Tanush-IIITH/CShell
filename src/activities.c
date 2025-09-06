@@ -325,3 +325,29 @@ void cleanup_terminated_activities(void)
         }
     }
 }
+
+/**
+ * Kill all background processes and clean up activities list
+ * 
+ * This function is called during EOF (Ctrl-D) handling to terminate
+ * all child processes before shell exit. It:
+ * 1. Sends SIGKILL to all tracked processes
+ * 2. Clears the activities list
+ */
+void cleanup_all_background_processes(void)
+{
+    for (int i = 0; i < MAX_ACTIVITIES; i++)
+    {
+        if (activities[i].is_active)
+        {
+            // Send SIGKILL to terminate the process immediately
+            kill(activities[i].pid, SIGKILL);
+            
+            // Mark as inactive
+            activities[i].is_active = 0;
+        }
+    }
+    
+    // Reset activity count
+    activity_count = 0;
+}

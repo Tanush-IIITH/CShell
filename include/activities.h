@@ -108,3 +108,9 @@ ActivityEntry* find_activity(pid_t pid);
  * Clean up terminated processes from activities list
  */
 void cleanup_terminated_activities(void);
+
+/**
+ * Kill all background processes and clean up activities list
+ * Used during EOF (Ctrl-D) handling to terminate all child processes
+ */
+void cleanup_all_background_processes(void);
