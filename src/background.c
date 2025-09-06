@@ -2,11 +2,13 @@
 #include "command.h"
 #include "header.h"
 #include "activities.h"
+#include "signal_handler.h"
 
 // Global array to track background jobs
 static background_job_t background_jobs[MAX_BACKGROUND_JOBS];
 static int next_job_number = 1;
 static int job_count = 0;
+static int most_recent_job = -1; // Track most recent job number
 
 /**
  * Initialize the background job management system
@@ -135,6 +137,13 @@ int execute_background_command(char *command) {
     if (pid == 0) {
         // === CHILD PROCESS ===
         
+        // Create new process group for background process
+        // This prevents it from receiving terminal signals (Ctrl-C, Ctrl-Z)
+        if (setpgid(0, 0) == -1) {
+            perror("setpgid");
+            exit(1);
+        }
+        
         // Redirect stdin to /dev/null to prevent background processes
         // from accessing terminal input
         int null_fd = open("/dev/null", O_RDONLY);
@@ -157,6 +166,11 @@ int execute_background_command(char *command) {
     } else if (pid > 0) {
         // === PARENT PROCESS ===
         
+        // Set the child to its own process group to prevent it from
+        // receiving terminal signals (Ctrl-C, Ctrl-Z)
+        // Do this in parent too to prevent race condition
+        setpgid(pid, pid);
+        
         // Register the background job
         background_jobs[slot].job_number = next_job_number;
         background_jobs[slot].pid = pid;
@@ -172,6 +186,7 @@ int execute_background_command(char *command) {
         // Update counters
         next_job_number++;
         job_count++;
+        most_recent_job = background_jobs[slot].job_number; // Track most recent job
         
         return 0;
         
@@ -277,6 +292,143 @@ int add_stopped_job(pid_t pid, const char *command_name, int is_stopped) {
     int job_number = next_job_number;
     next_job_number++;
     job_count++;
+    most_recent_job = job_number; // Track most recent job
     
     return job_number;
+}
+
+/**
+ * Find job by job number
+ */
+static int find_job_by_number(int job_number) {
+    for (int i = 0; i < MAX_BACKGROUND_JOBS; i++) {
+        if (background_jobs[i].is_active && background_jobs[i].job_number == job_number) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/**
+ * Bring a job to the foreground
+ * 
+ * @param job_number: Job number to bring to foreground (-1 for most recent)
+ * @return: 0 on success, -1 on error
+ */
+int fg_command(int job_number) {
+    int slot;
+    
+    // If job_number is -1, use most recent job
+    if (job_number == -1) {
+        if (most_recent_job == -1) {
+            printf("No such job\n");
+            return -1;
+        }
+        job_number = most_recent_job;
+    }
+    
+    // Find the job
+    slot = find_job_by_number(job_number);
+    if (slot == -1) {
+        printf("No such job\n");
+        return -1;
+    }
+    
+    pid_t pid = background_jobs[slot].pid;
+    char *command_name = background_jobs[slot].command_name;
+    
+    // Print what we're bringing to foreground
+    printf("%s\n", command_name);
+    
+    // Send SIGCONT to resume the process if it was stopped
+    if (kill(pid, SIGCONT) == -1) {
+        perror("fg: kill");
+        return -1;
+    }
+    
+    // Set this process as foreground for signal handling
+    set_foreground_process(pid);
+    
+    // Remove from background jobs array
+    free(background_jobs[slot].command_name);
+    background_jobs[slot].is_active = 0;
+    background_jobs[slot].command_name = NULL;
+    job_count--;
+    
+    // Update most recent job if this was it
+    if (job_number == most_recent_job) {
+        most_recent_job = -1;
+        // Find the next most recent job
+        for (int i = 0; i < MAX_BACKGROUND_JOBS; i++) {
+            if (background_jobs[i].is_active && 
+                (most_recent_job == -1 || background_jobs[i].job_number > most_recent_job)) {
+                most_recent_job = background_jobs[i].job_number;
+            }
+        }
+    }
+    
+    // Wait for the process to complete
+    int status;
+    if (waitpid(pid, &status, WUNTRACED) == -1) {
+        perror("fg: waitpid");
+        return -1;
+    }
+    
+    // Check if process was stopped again
+    if (WIFSTOPPED(status)) {
+        // Process was stopped by signal handler which already added it back
+    }
+    
+    // Clear foreground process
+    set_foreground_process(0);
+    
+    return 0;
+}
+
+/**
+ * Resume a job in the background
+ * 
+ * @param job_number: Job number to resume (-1 for most recent)
+ * @return: 0 on success, -1 on error
+ */
+int bg_command(int job_number) {
+    int slot;
+    
+    // If job_number is -1, use most recent job
+    if (job_number == -1) {
+        if (most_recent_job == -1) {
+            printf("No such job\n");
+            return -1;
+        }
+        job_number = most_recent_job;
+    }
+    
+    // Find the job
+    slot = find_job_by_number(job_number);
+    if (slot == -1) {
+        printf("No such job\n");
+        return -1;
+    }
+    
+    pid_t pid = background_jobs[slot].pid;
+    char *command_name = background_jobs[slot].command_name;
+    
+    // Check if process is already running
+    int status;
+    if (waitpid(pid, &status, WNOHANG | WUNTRACED) == 0) {
+        // Process is still running
+        printf("Job already running\n");
+        return 0;
+    }
+    
+    // Send SIGCONT to resume the process
+    if (kill(pid, SIGCONT) == -1) {
+        perror("bg: kill");
+        return -1;
+    }
+    
+    // Print status
+    printf("[%d]+ %s &\n", job_number, command_name);
+    
+    return 0;
 }

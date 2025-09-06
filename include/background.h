@@ -93,3 +93,19 @@ void remove_background_operator(char *command);
  * @return: Job number assigned, or -1 on error
  */
 int add_stopped_job(pid_t pid, const char *command_name, int is_stopped);
+
+/**
+ * Bring a job to the foreground
+ * 
+ * @param job_number: Job number to bring to foreground (-1 for most recent)
+ * @return: 0 on success, -1 on error
+ */
+int fg_command(int job_number);
+
+/**
+ * Resume a job in the background
+ * 
+ * @param job_number: Job number to resume (-1 for most recent)
+ * @return: 0 on success, -1 on error
+ */
+int bg_command(int job_number);

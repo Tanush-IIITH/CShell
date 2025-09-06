@@ -271,6 +271,25 @@ void execute_single_command(char *command) {
         exit(0);  // Terminate the program immediately
     }
     
+    // Special case: fg and bg commands must run in parent for job control
+    if (strcmp(args[0], "fg") == 0) {
+        int job_number = -1; // Default to most recent job
+        if (arg_count > 1) {
+            job_number = atoi(args[1]);
+        }
+        fg_command(job_number);
+        return;
+    }
+    
+    if (strcmp(args[0], "bg") == 0) {
+        int job_number = -1; // Default to most recent job
+        if (arg_count > 1) {
+            job_number = atoi(args[1]);
+        }
+        bg_command(job_number);
+        return;
+    }
+    
     // All other commands (built-in and external) run in child process for consistent I/O handling
     pid_t pid = fork();  // Create a child process
     
