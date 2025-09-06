@@ -81,3 +81,15 @@ void cleanup_background_jobs(void);
  * @param command: Command string to modify (modified in-place)
  */
 void remove_background_operator(char *command);
+
+/**
+ * Add a stopped process to background jobs
+ * 
+ * Registers a process that was stopped via Ctrl-Z as a background job
+ * 
+ * @param pid: Process ID of the stopped process
+ * @param command_name: Name of the command for display
+ * @param is_stopped: 1 if process is stopped, 0 if running
+ * @return: Job number assigned, or -1 on error
+ */
+int add_stopped_job(pid_t pid, const char *command_name, int is_stopped);

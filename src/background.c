@@ -231,3 +231,52 @@ void cleanup_background_jobs(void) {
     }
     job_count = 0;
 }
+
+/**
+ * Add a stopped process to background jobs
+ * 
+ * Registers a process that was stopped via Ctrl-Z as a background job
+ * 
+ * @param pid: Process ID of the stopped process
+ * @param command_name: Name of the command for display
+ * @param is_stopped: 1 if process is stopped, 0 if running
+ * @return: Job number assigned, or -1 on error
+ */
+int add_stopped_job(pid_t pid, const char *command_name, int is_stopped) {
+    // Avoid unused parameter warning
+    (void)is_stopped;
+    
+    // Find an available slot
+    int slot = -1;
+    for (int i = 0; i < MAX_BACKGROUND_JOBS; i++) {
+        if (!background_jobs[i].is_active) {
+            slot = i;
+            break;
+        }
+    }
+    
+    if (slot == -1) {
+        fprintf(stderr, "Maximum number of background jobs reached\n");
+        return -1;
+    }
+    
+    // Copy command name
+    char *name_copy = strdup(command_name);
+    if (!name_copy) {
+        perror("strdup");
+        return -1;
+    }
+    
+    // Register the background job
+    background_jobs[slot].job_number = next_job_number;
+    background_jobs[slot].pid = pid;
+    background_jobs[slot].command_name = name_copy;
+    background_jobs[slot].is_active = 1;
+    
+    // Update counters
+    int job_number = next_job_number;
+    next_job_number++;
+    job_count++;
+    
+    return job_number;
+}

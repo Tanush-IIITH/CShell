@@ -36,3 +36,19 @@ pid_t get_foreground_process(void);
  * Kills all child processes and exits shell cleanly
  */
 void handle_eof_condition(void);
+
+/**
+ * Move a single process to background with "Stopped" status
+ * Used when Ctrl-Z is pressed on a single command
+ * 
+ * @param pid: Process ID to move to background
+ */
+void move_process_to_background(pid_t pid);
+
+/**
+ * Move a process group to background with "Stopped" status
+ * Used when Ctrl-Z is pressed on a pipeline
+ * 
+ * @param pgid: Process Group ID to move to background
+ */
+void move_process_group_to_background(pid_t pgid);

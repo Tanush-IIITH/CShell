@@ -1,6 +1,7 @@
 #include "signal_handler.h"
 #include "shell_input.h"
 #include "activities.h"
+#include "background.h"
 #include <signal.h>
 #include <sys/types.h>
 
@@ -51,6 +52,53 @@ static void sigint_handler(int sig) {
 }
 
 /**
+ * SIGTSTP signal handler
+ * 
+ * This function is called when Ctrl-Z (SIGTSTP) is pressed.
+ * It forwards the SIGTSTP signal to the current foreground process or process group
+ * if one exists, moves the stopped process to background, and prints job info.
+ * The shell itself does not stop.
+ * 
+ * @param sig: The signal number (should be SIGTSTP = 20)
+ */
+static void sigtstp_handler(int sig) {
+    // Avoid unused parameter warning
+    (void)sig;
+    
+    // Priority: Process group (pipeline) > Single process
+    if (current_foreground_pgid > 0) {
+        printf("\n"); // Move to new line after ^Z
+        
+        // Send SIGTSTP to entire process group (negative PID signals the group)
+        if (kill(-current_foreground_pgid, SIGTSTP) == 0) {
+            // Signal sent successfully to entire pipeline
+            // Move the process group to background with "Stopped" status
+            move_process_group_to_background(current_foreground_pgid);
+        } else {
+            // Process group might have already terminated
+            current_foreground_pgid = 0;
+        }
+    } else if (current_foreground_pid > 0) {
+        printf("\n"); // Move to new line after ^Z
+        
+        // Send SIGTSTP to the single foreground process
+        if (kill(current_foreground_pid, SIGTSTP) == 0) {
+            // Signal sent successfully
+            // Move the process to background with "Stopped" status
+            move_process_to_background(current_foreground_pid);
+        } else {
+            // Process might have already terminated
+            current_foreground_pid = 0;
+        }
+    } else {
+        // No foreground process, just print a newline and redisplay prompt
+        printf("\n");
+        display_shell_prompt();  // Redisplay the shell prompt
+        fflush(stdout);
+    }
+}
+
+/**
  * Initialize signal handling for the shell
  * 
  * Sets up the SIGINT handler to prevent the shell from terminating
@@ -58,13 +106,24 @@ static void sigint_handler(int sig) {
  */
 void init_signal_handling(void) {
     // Install our custom SIGINT handler
-    struct sigaction sa; // posix structure that defines how to handle a specific signal
-    sa.sa_handler = sigint_handler;    // Our custom handler function
-    sigemptyset(&sa.sa_mask);          // Don't block other signals during handler
-    sa.sa_flags = SA_RESTART;          // Restart interrupted system calls
+    struct sigaction sa_int;
+    sa_int.sa_handler = sigint_handler;    // Our custom handler function
+    sigemptyset(&sa_int.sa_mask);          // Don't block other signals during handler
+    sa_int.sa_flags = SA_RESTART;          // Restart interrupted system calls
     
-    if (sigaction(SIGINT, &sa, NULL) == -1) {
-        perror("sigaction");
+    if (sigaction(SIGINT, &sa_int, NULL) == -1) {
+        perror("sigaction SIGINT");
+        // Continue anyway - shell will still work without proper signal handling
+    }
+    
+    // Install our custom SIGTSTP handler
+    struct sigaction sa_tstp;
+    sa_tstp.sa_handler = sigtstp_handler;  // Our custom handler function
+    sigemptyset(&sa_tstp.sa_mask);         // Don't block other signals during handler
+    sa_tstp.sa_flags = SA_RESTART;         // Restart interrupted system calls
+    
+    if (sigaction(SIGTSTP, &sa_tstp, NULL) == -1) {
+        perror("sigaction SIGTSTP");
         // Continue anyway - shell will still work without proper signal handling
     }
     
@@ -143,4 +202,64 @@ void handle_eof_condition(void) {
     
     // Exit shell with success status
     exit(0);
+}
+
+/**
+ * Move a single process to background with "Stopped" status
+ * 
+ * This function is called when Ctrl-Z is pressed on a single command.
+ * It adds the process to the background job list and prints job information.
+ * 
+ * @param pid: Process ID to move to background
+ */
+void move_process_to_background(pid_t pid) {
+    // Find the command name from activities
+    ActivityEntry* activity = find_activity(pid);
+    char* command_name = "unknown";
+    
+    if (activity != NULL) {
+        command_name = activity->command_name;
+        // Update activity status to stopped
+        activity->state = PROC_STOPPED;
+        activity->is_background = 1;
+    }
+    
+    // Add to background jobs list
+    int job_number = add_stopped_job(pid, command_name, 1); // 1 = stopped
+    
+    // Print job notification: [job_number] Stopped command_name
+    printf("[%d] Stopped %s\n", job_number, command_name);
+    
+    // Clear foreground tracking
+    current_foreground_pid = 0;
+    
+    // Redisplay prompt
+    display_shell_prompt();
+    fflush(stdout);
+}
+
+/**
+ * Move a process group to background with "Stopped" status
+ * 
+ * This function is called when Ctrl-Z is pressed on a pipeline.
+ * Since the group leader represents the entire pipeline, we can
+ * simply call move_process_to_background() with the group leader PID.
+ * 
+ * @param pgid: Process Group ID to move to background
+ */
+void move_process_group_to_background(pid_t pgid) {
+    // Update all processes in the group to stopped status in activities
+    for (int i = 0; i < MAX_ACTIVITIES; i++) {
+        if (activities[i].is_active && getpgid(activities[i].pid) == pgid) {
+            activities[i].state = PROC_STOPPED;
+            activities[i].is_background = 1;
+        }
+    }
+    
+    // The group leader (pgid) represents the entire pipeline
+    // Use the single process function to handle job management
+    move_process_to_background(pgid);
+    
+    // Clear foreground group tracking (single process function clears PID tracking)
+    current_foreground_pgid = 0;
 }
