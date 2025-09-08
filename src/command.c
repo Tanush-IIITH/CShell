@@ -380,7 +380,14 @@ void execute_command_without_logging(char *command) {
         return;
     }
     
-    // Check if command contains background operator (&)
+    // Check if command contains sequential background commands (multiple &)
+    if (contains_sequential_background_commands(command)) {
+        // Execute multiple background commands
+        execute_sequential_background_commands(command);
+        return;
+    }
+    
+    // Check if command contains background operator (&) - single background command
     if (contains_background_operator(command)) {
         // Remove the & operator and execute in background
         char *bg_command = strdup(command);

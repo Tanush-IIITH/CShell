@@ -48,6 +48,16 @@ void init_background_jobs(void);
 int contains_background_operator(const char *command);
 
 /**
+ * Check if command contains sequential background commands (multiple &)
+ * 
+ * Examples: "cmd1 & cmd2 & cmd3", "sleep 1 & echo hello & ls"
+ * 
+ * @param command: Command string to check
+ * @return: 1 if command contains multiple & separated commands, 0 otherwise
+ */
+int contains_sequential_background_commands(const char *command);
+
+/**
  * Execute a command in the background
  * 
  * Forks a child process to run the command without waiting for
@@ -57,6 +67,31 @@ int contains_background_operator(const char *command);
  * @return: 0 on success, -1 on error
  */
 int execute_background_command(char *command);
+
+/**
+ * Execute a single command in the background
+ * 
+ * Creates a new process to run the command and tracks it in the
+ * background jobs list.
+ * 
+ * @param command: Command string to execute (without & operator)
+ * @return: 0 on success, -1 on error
+ */
+int execute_background_command(char *command);
+
+/**
+ * Execute sequential background commands separated by &
+ * 
+ * Parses and executes multiple commands like "cmd1 & cmd2 & cmd3"
+ * The last command is executed in foreground unless the original string ends with &
+ * 
+ * Examples:
+ * - "cmd1 & cmd2 & cmd3 &" → All 3 commands in background
+ * - "cmd1 & cmd2 & cmd3" → cmd1,cmd2 in background, cmd3 in foreground
+ * 
+ * @param command: Command string containing multiple & operators
+ */
+void execute_sequential_background_commands(char *command);
 
 /**
  * Check for completed background jobs

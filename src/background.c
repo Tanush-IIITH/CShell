@@ -47,6 +47,36 @@ int contains_background_operator(const char *command) {
 }
 
 /**
+ * Check if command contains sequential background commands (multiple &)
+ */
+int contains_sequential_background_commands(const char *command) {
+    if (command == NULL || strlen(command) == 0) {
+        return 0;
+    }
+    
+    int count = 0;
+    char *temp = strdup(command);
+    char *token = strtok(temp, "&");
+    
+    // Count non-empty tokens separated by &
+    while (token != NULL) {
+        // Skip whitespace-only tokens
+        char *trimmed = token;
+        while (*trimmed == ' ' || *trimmed == '\t' || *trimmed == '\n') {
+            trimmed++;
+        }
+        
+        if (strlen(trimmed) > 0) {
+            count++;
+        }
+        token = strtok(NULL, "&");
+    }
+    
+    free(temp);
+    return count > 1; // Multiple commands if count > 1
+}
+
+/**
  * Remove the background operator from a command string
  */
 void remove_background_operator(char *command) {
@@ -431,4 +461,76 @@ int bg_command(int job_number) {
     printf("[%d]+ %s &\n", job_number, command_name);
     
     return 0;
+}
+
+/**
+ * Execute sequential background commands separated by &
+ * @param command: Command string containing multiple & operators
+ */
+void execute_sequential_background_commands(char *command) {
+    if (command == NULL || strlen(command) == 0) {
+        return;
+    }
+    
+    // Check if original command ends with & (determines if last command is background)
+    int original_ends_with_ampersand = contains_background_operator(command);
+    
+    char *command_copy = strdup(command);
+    if (command_copy == NULL) {
+        perror("strdup");
+        return;
+    }
+    
+    char *cmd_start = command_copy;
+    char *ampersand_pos;
+    int is_last_command = 0;
+    
+    // Process each command separated by &
+    while ((ampersand_pos = strchr(cmd_start, '&')) != NULL || strlen(cmd_start) > 0) {
+        
+        // Check if this is the last command (no more & found)
+        is_last_command = (ampersand_pos == NULL);
+        
+        // If we found an &, null-terminate the current command
+        if (ampersand_pos) {
+            *ampersand_pos = '\0';
+        }
+        
+        // Trim whitespace from current command
+        char *trimmed_start = cmd_start;
+        while (*trimmed_start == ' ' || *trimmed_start == '\t' || *trimmed_start == '\n') {
+            trimmed_start++;
+        }
+        
+        if (strlen(trimmed_start) > 0) {
+            // Remove trailing whitespace - optimized approach
+            char *trimmed_end = trimmed_start + strlen(trimmed_start) - 1;
+            while (trimmed_end > trimmed_start && 
+                   (*trimmed_end == ' ' || *trimmed_end == '\t' || *trimmed_end == '\n')) {
+                trimmed_end--;
+            }
+            // Only set ONE null terminator after the last non-whitespace character
+            *(trimmed_end + 1) = '\0';
+            
+            // Execute command based on whether it's the last command and original ending
+            if (strlen(trimmed_start) > 0) {
+                if (is_last_command && !original_ends_with_ampersand) {
+                    // Last command and original doesn't end with & → Execute in foreground
+                    execute_single_command(trimmed_start);
+                } else {
+                    // Not last command OR original ends with & → Execute in background
+                    execute_background_command(trimmed_start);
+                }
+            }
+        }
+        
+        // Move to next command
+        if (ampersand_pos) {
+            cmd_start = ampersand_pos + 1;
+        } else {
+            break; // No more & found
+        }
+    }
+    
+    free(command_copy);
 }

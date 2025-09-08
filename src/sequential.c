@@ -80,9 +80,12 @@ void execute_sequential_commands(char *command) {
         }
         
         // Step 3d: Execute the current command
-        // Check if this individual command should run in background
-        if (contains_background_operator(cmd_start)) {
-            // Remove & operator and execute in background
+        // Check if this individual command contains multiple background commands
+        if (contains_sequential_background_commands(cmd_start)) {
+            // Execute multiple background commands
+            execute_sequential_background_commands(cmd_start);
+        } else if (contains_background_operator(cmd_start)) {
+            // Single background command - remove & operator and execute in background
             char *bg_cmd = strdup(cmd_start);
             if (bg_cmd) {
                 remove_background_operator(bg_cmd);
