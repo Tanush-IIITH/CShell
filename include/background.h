@@ -18,7 +18,7 @@
  */
 
 // Maximum number of background jobs that can be tracked simultaneously
-#define MAX_BACKGROUND_JOBS 100
+#define MAX_BACKGROUND_JOBS 4194400
 
 // Structure to track background job information
 typedef struct {

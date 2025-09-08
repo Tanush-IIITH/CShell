@@ -337,8 +337,9 @@ void execute_single_command(char *command) {
             // External command: Use execvp() to execute arbitrary programs
             // execvp() searches for the command in PATH and executes it
             if (execvp(args[0], args) == -1) {
-                // execvp() failed - silently ignore and exit
-                exit(1);  // Exit child process with error status (but no message)
+                // execvp() failed - command not found or other error
+                printf("Command not found!\n");
+                exit(1);  // Exit child process with error status
             }
         }
     } else if (pid > 0) {

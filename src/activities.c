@@ -182,7 +182,7 @@ void display_activities(void)
 
     if (displayed == 0)
     {
-        printf("No active processes\n");
+        // printf("No active processes\n");
     }
 }
 
