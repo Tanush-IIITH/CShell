@@ -586,6 +586,7 @@ void execute_pipeline(char *command) {
             } else {
                 // External command: use execvp to replace process image
                 if (execvp(args[0], args) == -1) {
+                    printf("Command not found!\n");
                     exit(1);  // Exit with error if exec fails
                 }
             }
