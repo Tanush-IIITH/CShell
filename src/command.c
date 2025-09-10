@@ -271,6 +271,17 @@ void execute_single_command(char *command) {
         exit(0);  // Terminate the program immediately
     }
     
+    if (strcmp(args[0], "hop") == 0) {
+        // Execute hop_command directly in the parent process
+        hop_command(args, arg_count);
+        // No fork, no waitpid, just cleanup and return to the main loop
+        free(command_copy);
+        free_command_args(args, arg_count);
+        if (input_file) free(input_file);
+        if (output_file) free(output_file);
+        return; // Return to the main shell loop
+    }
+
     // Special case: fg and bg commands must run in parent for job control
     if (strcmp(args[0], "fg") == 0) {
         int job_number = -1; // Default to most recent job
@@ -313,11 +324,12 @@ void execute_single_command(char *command) {
         }
         
         // Command dispatch: Check the first argument to determine command type
-        if (strcmp(args[0], "hop") == 0) {
-            // Built-in hop command for directory navigation
-            hop_command(args, arg_count);
-            exit(0);  // Exit child process after built-in command
-        } else if (strcmp(args[0], "reveal") == 0) {
+        // if (strcmp(args[0], "hop") == 0) {
+        //     // Built-in hop command for directory navigation
+        //     hop_command(args, arg_count);
+        //     exit(0);  // Exit child process after built-in command
+        // } else 
+        if (strcmp(args[0], "reveal") == 0) {
             // Built-in reveal command for listing directory contents
             reveal_command(args, arg_count);
             exit(0);  // Exit child process after built-in command
