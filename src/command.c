@@ -114,6 +114,7 @@ char** parse_command_args(char *command, int *arg_count, char **input_file, char
 
     // Validate all intermediate input files (all except the last one)
     for (int i = 0; i < input_file_count - 1; i++) {
+        // Intermediate input files must exist; if not, error out
         if (access(input_files[i], F_OK) == -1) {
             printf("No such file or directory\n");
             // Clean up and return error
@@ -134,35 +135,25 @@ char** parse_command_args(char *command, int *arg_count, char **input_file, char
 
     // Validate all intermediate output files (all except the last one)
     for (int i = 0; i < output_file_count - 1; i++) {
-        // For output files, we need to check if the directory exists and is writable
-        // Extract directory path from file path
-        char *dir_path = strdup(output_files[i]);
-        char *slash_pos = strrchr(dir_path, '/');
-        if (slash_pos) {
-            *slash_pos = '\0'; // Truncate at last slash to get directory
-            if (access(dir_path, W_OK) == -1) {
-                printf("No such file or directory\n");
-                free(dir_path);
-                // Clean up and return error
-                for (int j = i; j < output_file_count; j++) {
-                    free(output_files[j]);
-                }
-                free_command_args(args, *arg_count);
-                return NULL; // Indicate parsing failure
+        // For intermediate output files, attempt to open/create them according
+        // to the expected mode so that failures are detected early. We open
+        // and close immediately; only the last output file will be used for
+        // actual redirection during execution.
+        int fd = open(output_files[i], O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        if (fd == -1) {
+            printf("Unable to create file for writing\n");
+            // Clean up and return error
+            for (int j = 0; j < input_file_count; j++) {
+                /* some entries may be NULL if counts were zero */
+                if (input_files[j]) free(input_files[j]);
             }
-        } else {
-            // No directory path, check current directory writability
-            if (access(".", W_OK) == -1) {
-                printf("No such file or directory\n");
-                // Clean up and return error
-                for (int j = i; j < output_file_count; j++) {
-                    free(output_files[j]);
-                }
-                free_command_args(args, *arg_count);
-                return NULL; // Indicate parsing failure
+            for (int j = 0; j < output_file_count; j++) {
+                if (output_files[j]) free(output_files[j]);
             }
+            free_command_args(args, *arg_count);
+            return NULL; // Indicate parsing failure
         }
-        free(dir_path);
+        close(fd);
         free(output_files[i]); // Free intermediate files
     }
     if (output_file_count > 0) {
@@ -245,7 +236,7 @@ int setup_output_redirection(const char *output_file, int append_mode) {
     // Open with read/write permissions for owner, read for group and others
     int fd = open(output_file, flags, 0644);
     if (fd == -1) {
-        printf("Unable to create file for writing\n"); // With this
+        printf("Unable to create file for writing\n"); 
         return -1;
     }
     
