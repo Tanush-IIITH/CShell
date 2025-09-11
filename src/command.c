@@ -468,6 +468,13 @@ void execute_command_without_logging(char *command) {
         return;
     }
     
+    // Check if command contains semicolons for sequential execution
+    if (contains_semicolon(command)) {
+        // Execute sequential commands using semicolon splitting approach
+        execute_sequential_commands(command);
+        return;
+    }
+
     // Check if command contains sequential background commands (multiple &)
     if (contains_sequential_background_commands(command)) {
         // Execute multiple background commands
@@ -484,13 +491,6 @@ void execute_command_without_logging(char *command) {
             execute_background_command(bg_command);
             free(bg_command);
         }
-        return;
-    }
-    
-    // Check if command contains semicolons for sequential execution
-    if (contains_semicolon(command)) {
-        // Execute sequential commands using semicolon splitting approach
-        execute_sequential_commands(command);
         return;
     }
     

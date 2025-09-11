@@ -1,5 +1,6 @@
 #include "../include/header.h"
 #include "../include/hop.h"
+#include "../include/shell_input.h"
 
 /* ===============================================
  * GLOBAL STATE VARIABLES FOR HOP COMMAND
@@ -7,7 +8,6 @@
 
 // Static variables maintain state across function calls within this file only
 static char previous_directory[4096] = "";  // Stores the last directory for 'hop -' command
-static char home_directory[4096] = "";      // Stores user's home directory for 'hop ~' and 'hop' commands  
 static int hop_initialized = 0;             // Flag to prevent re-initialization (0=not initialized, 1=initialized)
 
 /* ===============================================
@@ -16,35 +16,15 @@ static int hop_initialized = 0;             // Flag to prevent re-initialization
 
 /**
  * Initialize hop command state - called once during shell session
- * This function sets up the home directory path and initializes tracking variables
- * Uses system calls to get user information and safely stores directory paths
+ * This function initializes tracking variables for directory history
  */
 void init_hop_state(void) {
-    /* Step 1: Get user information from system password database */
-    struct passwd *pw = getpwuid(getuid());
-    // getuid() returns current user's UID, getpwuid() looks up user info in /etc/passwd
-    
-    /* Step 2: Extract and validate home directory path */
-    if (pw && pw->pw_dir) {
-        // Both user lookup and home directory field are valid
-        // Use strncpy for safe copying to prevent buffer overflow
-        strncpy(home_directory, pw->pw_dir, sizeof(home_directory) - 1);
-        
-        // Manually ensure null termination (strncpy doesn't guarantee this)
-        // This is critical for string safety - always null-terminate manually
-        home_directory[sizeof(home_directory) - 1] = '\0';
-    } else {
-        // Fallback: user lookup failed or home directory not found
-        // Use root directory as last resort (guaranteed to exist on any Unix system)
-        strcpy(home_directory, "/"); 
-    }
-    
-    /* Step 3: Initialize directory history tracking */
+    /* Step 1: Initialize directory history tracking */
     // Set previous directory to empty string - no history exists yet
     // This ensures 'hop -' will do nothing until after first directory change
     previous_directory[0] = '\0';
     
-    /* Step 4: Mark initialization as complete */
+    /* Step 2: Mark initialization as complete */
     // Prevents this expensive initialization from running multiple times
     // Critical for preserving directory history across hop command calls
     hop_initialized = 1;
@@ -68,9 +48,8 @@ char* get_home_directory(void) {
         init_hop_state();
     }
     
-    // Return pointer to statically allocated home directory string
-    // Safe to use - string persists for entire program lifetime
-    return home_directory;
+    // Return pointer to shell's home directory (startup cwd)
+    return get_shell_home_directory();
 }
 
 /**
@@ -190,7 +169,7 @@ int hop_command(char **args, int arg_count) {
         // According to grammar: hop goes to home directory
         
         save_current_as_previous();              // Preserve current location for 'hop -'
-        return change_directory(home_directory); // Change to home and return result
+        return change_directory(get_shell_home_directory()); // Change to home and return result
     }
     
     /* Step 3: Process each argument sequentially (left to right) */
@@ -204,7 +183,7 @@ int hop_command(char **args, int arg_count) {
             // Grammar rule: ~ -> go to home directory
             
             save_current_as_previous();              // Save current for history
-            if (!change_directory(home_directory)) { // Attempt directory change
+            if (!change_directory(get_shell_home_directory())) { // Attempt directory change
                 return 0; // Stop processing on first error - fail-fast behavior
             }
             

@@ -2,6 +2,7 @@
 #include "header.h"
 
 void init_shell_home(void);
+char* get_shell_home_directory(void);
 
 // Function declarations for shell prompt functionality
 char* get_username(void); //gets the username from environment variable or system call

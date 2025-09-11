@@ -1,6 +1,7 @@
 #include "../include/header.h"
 #include "../include/reveal.h"
 #include "../include/hop.h"  // For accessing previous directory state
+#include "../include/shell_input.h"  // For shell home directory
 
 /**
  * Compare function for qsort to sort directory entries lexicographically
@@ -45,9 +46,8 @@ char* resolve_reveal_path(const char *target) {
         }
     } 
     else if (strcmp(target, "~") == 0) {
-        // Handle home directory resolution using system user database
-        struct passwd *pw = getpwuid(getuid());  // Get user info from passwd database
-        const char *home = pw ? pw->pw_dir : "/";  // Use home dir or fallback to root
+        // Handle home directory resolution using shell's startup directory
+        const char *home = get_shell_home_directory();
         
         // Safely copy home directory path with bounds checking
         strncpy(resolved_path, home, PATH_MAX - 1);

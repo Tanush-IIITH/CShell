@@ -11,6 +11,11 @@ void init_shell_home(void) {
     }
 }
 
+// Getter for the shell's home directory
+char* get_shell_home_directory(void) {
+    return shell_home_directory;
+}
+
 // Get username
 char* get_username(void) {
     struct passwd *pw = getpwuid(getuid());
