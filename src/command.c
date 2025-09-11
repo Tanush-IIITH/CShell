@@ -34,25 +34,36 @@ char** parse_command_args(char *command, int *arg_count, char **input_file, char
     *input_file = NULL;  // Initialize input file pointer
     *output_file = NULL;  // Initialize output file pointer
     *append_mode = -1;   // Initialize append mode (-1 = no output redirection)
-    
+
+    // Temporary arrays to store all redirection files for validation
+    char *input_files[64];   // Store all input redirection files
+    char *output_files[64];  // Store all output redirection files
+    int input_file_count = 0;
+    int output_file_count = 0;
+
     // Clean up the command string by removing trailing newline character
     // This is necessary because input from fgets() often includes '\n'
     char *newline = strchr(command, '\n');
     if (newline) {
         *newline = '\0';  // Replace newline with null terminator
     }
-    
+
     // Begin tokenization process using strtok()
     // Split on space, tab, newline, and carriage return characters
     char *token = strtok(command, " \t\n\r");
-    
+
     // Process each token until we reach the end or hit our argument limit
     while (token != NULL && *arg_count < 63) { // Reserve space for NULL terminator
         if (strcmp(token, "<") == 0) {
             // Input redirection operator found
             token = strtok(NULL, " \t\n\r");  // Get the filename
             if (token != NULL) {
-                // If multiple input redirections, only keep the last one
+                // Store all input files for validation
+                if (input_file_count < 64) {
+                    input_files[input_file_count] = strdup(token);
+                    input_file_count++;
+                }
+                // Keep only the last input file for actual redirection
                 if (*input_file) {
                     free(*input_file);
                 }
@@ -62,7 +73,12 @@ char** parse_command_args(char *command, int *arg_count, char **input_file, char
             // Output redirection operator found (overwrite mode)
             token = strtok(NULL, " \t\n\r");  // Get the filename
             if (token != NULL) {
-                // If multiple output redirections, only keep the last one
+                // Store all output files for validation
+                if (output_file_count < 64) {
+                    output_files[output_file_count] = strdup(token);
+                    output_file_count++;
+                }
+                // Keep only the last output file for actual redirection
                 if (*output_file) {
                     free(*output_file);
                 }
@@ -73,7 +89,12 @@ char** parse_command_args(char *command, int *arg_count, char **input_file, char
             // Output redirection operator found (append mode)
             token = strtok(NULL, " \t\n\r");  // Get the filename
             if (token != NULL) {
-                // If multiple output redirections, only keep the last one
+                // Store all output files for validation
+                if (output_file_count < 64) {
+                    output_files[output_file_count] = strdup(token);
+                    output_file_count++;
+                }
+                // Keep only the last output file for actual redirection
                 if (*output_file) {
                     free(*output_file);
                 }
@@ -86,11 +107,68 @@ char** parse_command_args(char *command, int *arg_count, char **input_file, char
             args[*arg_count] = strdup(token);
             (*arg_count)++;  // Increment argument counter
         }
-        
+
         // Get the next token from the remaining string
         token = strtok(NULL, " \t\n\r");
     }
-    
+
+    // Validate all intermediate input files (all except the last one)
+    for (int i = 0; i < input_file_count - 1; i++) {
+        if (access(input_files[i], F_OK) == -1) {
+            printf("No such file or directory\n");
+            // Clean up and return error
+            for (int j = 0; j < input_file_count; j++) {
+                free(input_files[j]);
+            }
+            for (int j = 0; j < output_file_count; j++) {
+                free(output_files[j]);
+            }
+            free_command_args(args, *arg_count);
+            return NULL; // Indicate parsing failure
+        }
+        free(input_files[i]); // Free intermediate files
+    }
+    if (input_file_count > 0) {
+        free(input_files[input_file_count - 1]); // Free the last one too
+    }
+
+    // Validate all intermediate output files (all except the last one)
+    for (int i = 0; i < output_file_count - 1; i++) {
+        // For output files, we need to check if the directory exists and is writable
+        // Extract directory path from file path
+        char *dir_path = strdup(output_files[i]);
+        char *slash_pos = strrchr(dir_path, '/');
+        if (slash_pos) {
+            *slash_pos = '\0'; // Truncate at last slash to get directory
+            if (access(dir_path, W_OK) == -1) {
+                printf("No such file or directory\n");
+                free(dir_path);
+                // Clean up and return error
+                for (int j = i; j < output_file_count; j++) {
+                    free(output_files[j]);
+                }
+                free_command_args(args, *arg_count);
+                return NULL; // Indicate parsing failure
+            }
+        } else {
+            // No directory path, check current directory writability
+            if (access(".", W_OK) == -1) {
+                printf("No such file or directory\n");
+                // Clean up and return error
+                for (int j = i; j < output_file_count; j++) {
+                    free(output_files[j]);
+                }
+                free_command_args(args, *arg_count);
+                return NULL; // Indicate parsing failure
+            }
+        }
+        free(dir_path);
+        free(output_files[i]); // Free intermediate files
+    }
+    if (output_file_count > 0) {
+        free(output_files[output_file_count - 1]); // Free the last one too
+    }
+
     // NULL-terminate the arguments array (required by execv and similar functions)
     args[*arg_count] = NULL;
     return args;
@@ -256,7 +334,13 @@ void execute_single_command(char *command) {
     char *output_file;
     int append_mode;
     char **args = parse_command_args(command_copy, &arg_count, &input_file, &output_file, &append_mode);
-    
+
+    // Check if parsing failed due to non-existent intermediate files
+    if (args == NULL) {
+        free(command_copy);
+        return; // Error message already printed by parse_command_args
+    }
+
     if (arg_count == 0) {
         free(command_copy);
         free_command_args(args, arg_count);
@@ -505,7 +589,18 @@ void execute_pipeline(char *command) {
         char *input_file, *output_file;
         int append_mode;
         char **args = parse_command_args(cmd_start, &arg_count, &input_file, &output_file, &append_mode);
-        
+
+        // Check if parsing failed due to non-existent intermediate files
+        if (args == NULL) {
+            // Clean up and exit pipeline execution
+            free(command_copy);
+            for (int j = 0; j < num_commands - 1; j++) {
+                close(pipe_fds[j][0]);
+                close(pipe_fds[j][1]);
+            }
+            return; // Error message already printed by parse_command_args
+        }
+
         // Skip empty commands (shouldn't happen with valid input)
         if (arg_count == 0) {
             if (pipe_pos) cmd_start = pipe_pos + 1;

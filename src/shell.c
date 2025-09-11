@@ -26,8 +26,6 @@ int main() {
     init_activities();
     
     while(1){
-        // Check for completed background jobs before processing new input
-        check_background_jobs();
 
         display_shell_prompt(); //display the shell prompt
         char command[4096];
@@ -39,6 +37,8 @@ int main() {
             handle_eof_condition();
             // Function never returns (calls exit(0))
         }
+        // Check for completed background jobs before processing new input
+        check_background_jobs();
 
         // Skip empty commands
         if (strlen(command) <= 1) { // Only newline
