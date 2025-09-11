@@ -1,6 +1,16 @@
 #include "../include/header.h"
 #include "../include/shell_input.h"
 
+static char shell_home_directory[1024] = "";
+
+// Function to initialize the shell's home directory (the startup path)
+void init_shell_home(void) {
+    if (getcwd(shell_home_directory, sizeof(shell_home_directory)) == NULL) {
+        // Fallback to root if getcwd fails
+        strcpy(shell_home_directory, "/");
+    }
+}
+
 // Get username
 char* get_username(void) {
     struct passwd *pw = getpwuid(getuid());
@@ -28,8 +38,7 @@ char* get_current_path(void) {
     }
     
     // Get home directly from passwd database
-    struct passwd *pw = getpwuid(getuid());
-    char *home = pw ? pw->pw_dir : "/";
+    char *home = shell_home_directory;
     
     if (home != NULL) {
         size_t home_len = strlen(home);

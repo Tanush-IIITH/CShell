@@ -167,7 +167,7 @@ int setup_output_redirection(const char *output_file, int append_mode) {
     // Open with read/write permissions for owner, read for group and others
     int fd = open(output_file, flags, 0644);
     if (fd == -1) {
-        perror("open");
+        printf("Unable to create file for writing\n"); // With this
         return -1;
     }
     

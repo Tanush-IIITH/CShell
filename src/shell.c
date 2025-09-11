@@ -9,12 +9,16 @@
 #include "../include/signal_handler.h"
 
 int main() {
+
+    // Initialize the path for prompt display (~ substitution)
+    init_shell_home();
+
     // Initialize signal handling (Ctrl-C protection)
     init_signal_handling();
     
     // Initialize hop command state
     init_hop_state();
-    
+
     // Initialize background job management
     init_background_jobs();
     
