@@ -218,7 +218,7 @@ void move_process_to_background(pid_t pid) {
     char* command_name = "unknown";
     
     if (activity != NULL) {
-        command_name = activity->command_name;
+        command_name = activity->full_command;
         // Update activity status to stopped
         activity->state = PROC_STOPPED;
         activity->is_background = 1;

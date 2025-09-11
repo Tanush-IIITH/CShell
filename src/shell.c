@@ -24,7 +24,7 @@ int main() {
     while(1){
         // Check for completed background jobs before processing new input
         check_background_jobs();
-        
+
         display_shell_prompt(); //display the shell prompt
         char command[4096];
         

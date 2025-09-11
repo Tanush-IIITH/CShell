@@ -112,27 +112,42 @@ static char* extract_background_command_name(const char *command) {
     if (command == NULL) {
         return strdup("unknown");
     }
-    
-    // Skip leading whitespace
-    while (*command == ' ' || *command == '\t') {
-        command++;
+
+    size_t new_len = strlen(command) + 3; // command + space + & + \0
+    char *full_command_with_ampersand = malloc(new_len);
+
+    if (full_command_with_ampersand) {
+        // Copy the original command
+        strcpy(full_command_with_ampersand, command);
+        // Append the " &"
+        strcat(full_command_with_ampersand, " &");
+    } else {
+        // Fallback in case of malloc failure
+        return strdup("unknown");
     }
     
-    // Find the end of the first word (command name)
-    const char *end = command;
-    while (*end != '\0' && *end != ' ' && *end != '\t') {
-        end++;
-    }
+    return full_command_with_ampersand;
+
+    // // Skip leading whitespace
+    // while (*command == ' ' || *command == '\t') {
+    //     command++;
+    // }
     
-    // Extract the command name
-    int name_len = end - command;
-    char *name = malloc(name_len + 1);
-    if (name) {
-        strncpy(name, command, name_len);
-        name[name_len] = '\0';
-    }
+    // // Find the end of the first word (command name)
+    // const char *end = command;
+    // while (*end != '\0' && *end != ' ' && *end != '\t') {
+    //     end++;
+    // }
     
-    return name ? name : strdup("unknown");
+    // // Extract the command name
+    // int name_len = end - command;
+    // char *name = malloc(name_len + 1);
+    // if (name) {
+    //     strncpy(name, command, name_len);
+    //     name[name_len] = '\0';
+    // }
+    
+    // return name ? name : strdup("unknown");
 }
 
 /**
@@ -248,7 +263,9 @@ void check_background_jobs(void) {
                     printf("%s with pid %d exited abnormally\n", 
                            background_jobs[i].command_name, pid);
                 }
-                
+
+                fflush(stdout);
+
                 // Clean up job slot
                 free(background_jobs[i].command_name);
                 background_jobs[i].is_active = 0;
@@ -458,7 +475,7 @@ int bg_command(int job_number) {
     }
     
     // Print status
-    printf("[%d]+ %s &\n", job_number, command_name);
+    printf("[%d]+ %s\n", job_number, command_name);
     
     return 0;
 }
