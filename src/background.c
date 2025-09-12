@@ -3,6 +3,7 @@
 #include "header.h"
 #include "activities.h"
 #include "signal_handler.h"
+#include <ctype.h>
 
 // Global array to track background jobs
 static background_job_t background_jobs[MAX_BACKGROUND_JOBS];
@@ -255,16 +256,39 @@ void check_background_jobs(void) {
         // Find the job with this PID
         for (int i = 0; i < MAX_BACKGROUND_JOBS; i++) {
             if (background_jobs[i].is_active && background_jobs[i].pid == pid) {
-                // Report job completion
+                // Report job completion. Strip any trailing ' &' from stored
+                // command_name before printing so the ampersand is not shown.
+                char *display_name = NULL;
+                if (background_jobs[i].command_name) {
+                    // Duplicate and trim
+                    display_name = strdup(background_jobs[i].command_name);
+                    if (display_name) {
+                        int len = strlen(display_name);
+                        // Trim trailing whitespace
+                        while (len > 0 && isspace((unsigned char)display_name[len - 1])) {
+                            display_name[--len] = '\0';
+                        }
+                        // If trailing & exists, remove it and any preceding space
+                        if (len > 0 && display_name[len - 1] == '&') {
+                            display_name[--len] = '\0';
+                            while (len > 0 && isspace((unsigned char)display_name[len - 1])) {
+                                display_name[--len] = '\0';
+                            }
+                        }
+                    }
+                }
+
+                const char *name_to_print = display_name ? display_name : background_jobs[i].command_name;
+
+                // Print result
                 if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-                    printf("%s with pid %d exited normally\n", 
-                           background_jobs[i].command_name, pid);
+                    printf("%s with pid %d exited normally\n", name_to_print, pid);
                 } else {
-                    printf("%s with pid %d exited abnormally\n", 
-                           background_jobs[i].command_name, pid);
+                    printf("%s with pid %d exited abnormally\n", name_to_print, pid);
                 }
 
                 fflush(stdout);
+                free(display_name);
 
                 // Clean up job slot
                 free(background_jobs[i].command_name);
