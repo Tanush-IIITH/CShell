@@ -60,10 +60,7 @@ The project is structured into multiple modules to ensure separation of concerns
 The project uses a `Makefile` for easy compilation.
 ```bash
 # Clone the repository
-git clone [https://github.com/yourusername/c-shell.git](https://github.com/yourusername/c-shell.git)
-
-# Navigate to the shell directory
-cd c-shell/shell
+git clone https://github.com/Tanush-IIITH/CShell.git
 
 # Compile the shell
 make
