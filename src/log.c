@@ -1,6 +1,7 @@
 #include "../include/header.h"
 #include "../include/log.h"
 #include "../include/command.h"
+#include "../include/shell_input.h"
 
 /*
  * LOG SYSTEM OVERVIEW:
@@ -19,12 +20,23 @@
 
 /**
  * Get the log file path (in shell project folder)
- * 
- * @return: Static string containing the full path to the log file
+ *
+ * The path is resolved once using the shell's startup directory (captured
+ * before any 'hop'/'cd' can change the process cwd).  Subsequent calls
+ * return the cached absolute path so the history file always lives in the
+ * directory where the shell was launched, regardless of navigation.
+ *
+ * @return: Static string containing the full absolute path to the log file
  */
 static char* get_log_file_path() {
-    static char log_path[PATH_MAX];
-    snprintf(log_path, sizeof(log_path), "%s", LOG_FILE);
+    static char log_path[PATH_MAX] = "";
+
+    /* Build absolute path only once */
+    if (log_path[0] == '\0') {
+        snprintf(log_path, sizeof(log_path), "%s/%s",
+                 get_shell_home_directory(), LOG_FILE);
+    }
+
     return log_path;
 }
 
