@@ -68,6 +68,7 @@ char* get_current_path(void) {
         strncpy(display_path, pwd, sizeof(display_path) - 1);
         display_path[sizeof(display_path) - 1] = '\0';
     }
+    free(pwd);
     return display_path;
 }
 
