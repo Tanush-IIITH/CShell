@@ -208,7 +208,8 @@ int setup_input_redirection(const char *input_file) {
         return -1;
     }
     
-    return fd;  // Return fd so caller can close it
+    close(fd);
+    return 0;  
 }
 
 /**
@@ -247,7 +248,8 @@ int setup_output_redirection(const char *output_file, int append_mode) {
         return -1;
     }
     
-    return fd;  // Return fd so caller can close it
+    close(fd);
+    return 0;  
 }
 
 /**
